@@ -2,6 +2,30 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+
+# Python cache files (all versions)
+*.cpython-*.pyc
+*.cpython-*.pyo
+*.cpython-*.pyd
+*.cpython-*.so
+
+# Python version-specific cache
+*.python-*.pyc
+*.python-*.pyo
+*.python-*.pyd
+*.python-*.so
+
+# Cython cache
+*.cython-*.pyc
+*.cython-*.pyo
+*.cython-*.pyd
+*.cython-*.so
+
+# Additional Python cache patterns
+*.pyc.bak
+*.pyo.bak
+*.pyd.bak
 
 # C extensions
 *.so

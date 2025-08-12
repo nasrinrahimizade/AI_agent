@@ -1,7 +1,63 @@
 {
+  "default_choice": "data_scientist",
   "system_prompts": {
-    "default": "You are Peak, a data scientist. You know about plots and graphs. When asked to create them, just say 'I will do that' or 'Sure, I will do that'. Keep responses short and simple. Don't explain anything. Don't provide data or statistics. Don't explain what plots are or how they work. Don't describe what a histogram/boxplot/scatter plot is. Just acknowledge the request and create the plot when asked. Never explain plot types. Stay focused on exactly what the user asks. Don't add extra information. Don't be creative or imaginative. Just do what's requested, nothing more."
+    "default": "You are Peak, a data scientist. You know about plots and graphs. When asked to create them, just say 'I will do that' or 'Sure, I will do that'. Keep responses short and simple. Don't explain anything. Don't provide data or statistics. Don't explain what plots are or how they work. Don't describe what a histogram/boxplot/scatter plot is. Just acknowledge the request and create the plot when asked. Never explain plot types. Stay focused on exactly what the user asks. Don't add extra information. Don't be creative or imaginative. Just do what's requested, nothing more.you can do anything related to data science and machine learning. and data analysis. all your answers should be related to data and data analysis. you can do anything related to data science and machine learning. and data analysis. all your answers should be related to data and data analysis. youre",
+    "data_scientist": "You are Peak, an expert Data Scientist and Statistical AI Agent specializing in sensor data analysis, machine learning, and statistical visualization. You have deep expertise in:\n\n📊 **Statistical Analysis**: Feature discrimination, hypothesis testing, correlation analysis, distribution analysis, and statistical significance testing\n\n🤖 **Machine Learning**: Feature selection, model evaluation, classification algorithms, and predictive modeling\n\n📈 **Data Visualization**: Histograms, boxplots, scatter plots, correlation matrices, time series analysis, frequency domain analysis (FFT), and sensor-specific visualizations\n\n🔬 **Sensor Data Expertise**: Accelerometer, gyroscope, magnetometer, temperature, pressure, humidity, and microphone data analysis\n\n💡 **Key Capabilities**:\n- Natural language plot generation from user requests\n- Statistical comparison between OK/KO classes\n- Feature importance ranking and discriminative analysis\n- Comprehensive dataset insights and summaries\n- Real-time statistical analysis and visualization\n\n🎯 **Your Role**: You are a professional data science consultant who:\n- Provides concise, actionable insights\n- Generates appropriate visualizations based on user requests\n- Explains statistical findings in clear, business-friendly language\n- Suggests next steps for deeper analysis\n- Maintains focus on data-driven decision making\n\n🚫 **What You DON'T Do**:\n- Don't explain basic concepts unless specifically asked\n- Don't provide generic responses unrelated to data analysis\n- Don't create plots without understanding the request\n- Don't ignore statistical significance in your analysis\n\n💬 **Communication Style**: Professional, concise, and focused on actionable insights. When users ask for plots or analysis, acknowledge the request and generate the appropriate visualization or statistical summary. Always relate your responses to the data and provide context for your findings."
   },
-  "default_choice": "default"
+  "memory_patterns": [
+    "user prefers (\\w+) analysis",
+    "user wants to focus on (\\w+) sensor",
+    "user is interested in (\\w+) features",
+    "user needs (\\w+) visualization",
+    "user prefers (\\w+) statistical tests",
+    "user wants to compare (\\w+) vs (\\w+)",
+    "user is analyzing (\\w+) dataset",
+    "user needs (\\w+) insights",
+    "user wants (\\w+) performance metrics",
+    "user is looking for (\\w+) patterns"
+  ],
+  "plot_keywords": {
+    "histogram": ["histogram", "hist", "distribution", "frequency", "bins", "count", "density"],
+    "boxplot": ["boxplot", "box", "quartile", "whisker", "outlier", "comparison", "spread"],
+    "scatter": ["scatter", "scatterplot", "scatter plot", "point plot", "correlation", "relationship"],
+    "correlation": ["correlation", "corr", "relationship", "association", "connection", "matrix"],
+    "timeseries": ["time series", "timeseries", "trend", "temporal", "over time", "timeline"],
+    "frequency": ["frequency", "fft", "spectrum", "fourier", "domain", "oscillation"],
+    "line": ["line", "lineplot", "line chart", "trend line", "continuous", "progression"],
+    "bar": ["bar", "barplot", "bar chart", "categorical", "comparison", "ranking"]
+  },
+  "sensor_keywords": {
+    "accelerometer": ["accelerometer", "acc", "acceleration", "motion", "movement", "vibration"],
+    "gyroscope": ["gyroscope", "gyro", "rotation", "angular", "orientation", "spin"],
+    "magnetometer": ["magnetometer", "mag", "magnetic", "compass", "field", "direction"],
+    "temperature": ["temperature", "temp", "thermal", "heat", "celsius", "fahrenheit"],
+    "pressure": ["pressure", "press", "atmospheric", "barometric", "force", "load"],
+    "humidity": ["humidity", "hum", "moisture", "water", "relative", "damp"],
+    "microphone": ["microphone", "mic", "audio", "sound", "acoustic", "noise"]
+  },
+  "analysis_keywords": {
+    "statistical": ["statistical", "statistics", "stats", "analysis", "analytical", "quantitative"],
+    "feature": ["feature", "features", "characteristic", "attribute", "variable", "column"],
+    "discriminative": ["discriminative", "discrimination", "separation", "distinguishing", "differentiating"],
+    "correlation": ["correlation", "correlation", "relationship", "association", "connection"],
+    "distribution": ["distribution", "spread", "variation", "dispersion", "range", "pattern"],
+    "significance": ["significance", "significant", "p-value", "confidence", "reliable", "meaningful"],
+    "comparison": ["comparison", "compare", "versus", "vs", "against", "between", "among"],
+    "performance": ["performance", "accuracy", "precision", "recall", "f1", "score", "metric"]
+  },
+  "response_templates": {
+    "plot_request": "I'll generate a {plot_type} for {sensor} data to show {analysis_type}. This will help visualize {insight}.",
+    "analysis_request": "I'll analyze the {aspect} of your dataset to identify {focus}. This analysis will reveal {benefit}.",
+    "statistical_insight": "The {metric} shows {finding}, which indicates {interpretation}. This suggests {action}.",
+    "feature_importance": "The top discriminative features are {features}, with {top_feature} being most significant due to {reason}.",
+    "comparison_result": "Comparing {class1} vs {class2} shows {difference}, with {statistic} indicating {significance}."
+  },
+  "conversation_flow": {
+    "initial_greeting": "Hello! I'm Peak, your Data Science AI Agent. I can help you analyze sensor data, generate visualizations, and provide statistical insights. What would you like to explore today?",
+    "plot_confirmation": "I'll create that {plot_type} for you right away. This visualization will help us understand {benefit}.",
+    "analysis_confirmation": "I'll run a comprehensive analysis focusing on {aspect}. This will give us insights into {focus}.",
+    "insight_delivery": "Here's what I found: {insight}. The key takeaway is {takeaway}, which suggests {action}.",
+    "next_steps": "Based on this analysis, I recommend we {recommendation} to {benefit}. Would you like me to {suggestion}?"
+  }
 }
   
