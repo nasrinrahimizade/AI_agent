@@ -10,7 +10,6 @@ __pycache__\
 
 # Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -65,9 +64,6 @@ Pipfile.lock
 
 # Pyre type checker
 .pyre/
-
-# VS Code
-.vscode/
 
 # PyCharm
 .idea/
@@ -147,4 +143,10 @@ plots/
 *.pdf
 
 # Large model files and directories
-Llama-3.2-1B/ 
+Llama-3.2-1B/
+
+# Virtual environment
+env/
+
+# IDE and editor files
+.vscode/ 
