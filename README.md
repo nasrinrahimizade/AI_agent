@@ -1,191 +1,20 @@
-# Statistical AI Agent
+# 🤖 Statistical AI Agent - Advanced Data Analysis Platform
 
-A comprehensive data analysis and visualization application with AI-powered chat interface for sensor data analysis.
+A comprehensive, AI-powered desktop application for statistical analysis, machine learning, and data visualization with natural language interface. Built with PySide6 and powered by Llama-3.2-1B for intelligent data science workflows.
 
-## Overview
+### **Enhanced AI Capabilities**
+- **Professional Data Scientist Persona**: Expert-level AI assistant specialized in sensor data analysis
+- **Advanced Natural Language Processing**: Intelligent plot request detection and generation
+- **Memory & Learning**: AI remembers user preferences and learns from interactions
+- **Statistical Expertise**: Focus on statistical significance and data-driven insights
 
-The Statistical AI Agent is a desktop application built with PySide6 that provides an interactive interface for analyzing sensor data through various views and an AI-powered chat assistant. The application is structured into two main components: **GUI** (user interface) and **Core** (business logic and AI functionality).
+### **Improved Architecture**
+- **Unified AI Agent Interface**: Single entry point for all ML and statistical operations
+- **Enhanced Prompt System**: Comprehensive, professional prompts for data science tasks
+- **Better Error Handling**: Fallback data generation and graceful error recovery
+- **Performance Optimization**: Cached analysis results and efficient data processing
 
-## Architecture
-
-### GUI Component (`gui/`)
-
-The GUI component handles all user interface elements and provides multiple views for data analysis:
-
-#### Main Window (`gui/main_window.py`)
-- **Purpose**: Central application window that manages all views and navigation
-- **Features**:
-  - Menu bar with File operations (Open Dataset, Exit)
-  - Toolbar with quick navigation buttons for all views
-  - Status bar for application feedback
-  - Stacked widget system for switching between different views
-  - Default view: Chat interface (index 4)
-
-#### Views (`gui/views/`)
-
-**1. Chat View (`chat_view.py`)**
-- **Purpose**: AI-powered chat interface for natural language data analysis
-- **Features**:
-  - Real-time chat with AI assistant using Llama-3.2-1B model
-  - Natural language plot request detection
-  - Automatic plot generation based on conversation context
-  - Integration with plotting engine for visualizations
-  - Support for various plot types: boxplots, histograms, correlation matrices, time series, frequency analysis, scatter plots
-  - Enter key handling for message sending
-  - Timestamp-based message formatting
-
-**2. Data View (`data_view.py`)**
-- **Purpose**: Display raw dataset in tabular format
-- **Features**:
-  - QTableView for displaying pandas DataFrame
-  - Placeholder for future DataFrame model integration
-
-**3. Statistics View (`stats_view.py`)**
-- **Purpose**: Display statistical analysis of the dataset
-- **Features**:
-  - Placeholder for comprehensive statistical computations
-  - Basic row count display
-  - Extensible for mean, std, and other statistical measures
-
-**4. Model View (`model_view.py`)**
-- **Purpose**: Machine learning model interface
-- **Features**:
-  - Placeholder for ML model operations and training interface
-
-**5. Plot View (`plot_view.py`)**
-- **Purpose**: Display matplotlib visualizations
-- **Features**:
-  - FigureCanvas integration for matplotlib plots
-  - Dynamic plot switching and display
-  - Integration with plotting engine for advanced visualizations
-
-#### Resources (`gui/resources/`)
-- **UI Files**: Qt Designer files for interface layouts
-- **Icons**: Application icon resources
-
-### Core Component (`core/`)
-
-The core component handles all business logic, AI functionality, and data processing:
-
-#### AI Backend (`core/transformers_backend.py`)
-- **Purpose**: AI chatbot implementation using transformers library
-- **Features**:
-  - Llama-3.2-1B model integration with CUDA support
-  - 4-bit quantization for optimized inference
-  - Dynamic memory extraction from user conversations
-  - Conversation history management with configurable limits
-  - Advanced text generation with temperature, top-k, top-p sampling
-  - Repetition penalty to prevent response loops
-  - Natural language understanding for data analysis requests
-
-#### Plotting Engine (`core/ml_plotter.py`)
-- **Purpose**: Advanced statistical visualization system
-- **Features**:
-  - Natural language plot request parsing
-  - Multiple plot types: boxplots, histograms, correlation matrices, time series, frequency analysis, scatter plots
-  - Sensor-specific analysis (accelerometer, temperature, pressure, humidity)
-  - Statistical significance testing between OK/KO classes
-  - Feature discriminative analysis
-  - Fallback data generation for testing
-  - Integration with matplotlib and seaborn
-
-#### Data Loader (`core/data_loader.py`)
-- **Purpose**: Data ingestion and preprocessing
-- **Features**:
-  - CSV file loading with pandas
-  - Extensible data cleaning pipeline
-  - Support for various data formats
-
-#### Prompt Configuration (`core/prompt.json`)
-- **Purpose**: AI system prompt and configuration management
-- **Features**:
-  - Specialized prompts for data analysis assistant
-  - Plot request detection patterns
-  - Natural language understanding for visualization requests
-  - Context-aware responses for sensor data analysis
-
-## Key Features
-
-### AI-Powered Analysis
-- Natural language interface for data analysis
-- Automatic plot generation based on conversation context
-- Specialized knowledge in sensor data analysis
-- Real-time statistical insights
-
-### Multi-View Interface
-- **Data View**: Raw data exploration
-- **Statistics View**: Statistical analysis and summaries
-- **Model View**: Machine learning operations
-- **Plot View**: Advanced visualizations
-- **Chat View**: AI-powered conversational analysis
-
-### Advanced Plotting
-- Boxplots for feature comparison
-- Histograms for distribution analysis
-- Correlation matrices for feature relationships
-- Time series analysis for temporal patterns
-- Frequency domain analysis using FFT
-- Scatter plots for feature relationships
-- Sensor-specific analysis (accelerometer, temperature, pressure, humidity)
-
-### Data Management
-- CSV file loading and processing
-- Automatic data preparation and cleaning
-- Feature matrix handling for ML operations
-- Binary classification support (OK vs KO)
-
-## Technical Stack
-
-- **GUI Framework**: PySide6 (Qt for Python)
-- **AI Model**: Llama-3.2-1B (transformers library)
-- **Data Processing**: pandas, numpy
-- **Visualization**: matplotlib, seaborn
-- **Statistical Analysis**: scipy
-- **Machine Learning**: scikit-learn integration ready
-
-## Usage
-
-1. **Launch Application**: Run `main.py` to start the application
-2. **Load Data**: Use File → Open Dataset to load CSV sensor data
-3. **Navigate Views**: Use toolbar buttons to switch between different analysis views
-4. **Chat Analysis**: Use the Chat view for natural language data analysis
-5. **Generate Plots**: Request visualizations through the chat interface or plot view
-
-## File Structure
-
-```
-Statistical-AI-Agent/
-├── gui/
-│   ├── main_window.py          # Main application window
-│   ├── views/
-│   │   ├── chat_view.py        # AI chat interface
-│   │   ├── data_view.py        # Data table display
-│   │   ├── stats_view.py       # Statistical analysis
-│   │   ├── model_view.py       # ML model interface
-│   │   └── plot_view.py        # Visualization display
-│   └── resources/              # UI resources and icons
-├── core/
-│   ├── transformers_backend.py # AI chatbot implementation
-│   ├── ml_plotter.py          # Advanced plotting engine
-│   ├── data_loader.py         # Data ingestion
-│   └── prompt.json            # AI configuration
-├── Llama-3.2-1B/             # AI model directory
-└── main.py                    # Application entry point
-```
-
-## Development Notes
-
-- The application uses a modular architecture with clear separation between GUI and core logic
-- AI responses are optimized for sensor data analysis with specialized prompts
-- Plot generation is triggered through natural language detection in the chat interface
-- The system supports both OK and KO classification for sensor data analysis
-- All views are extensible for additional functionality
-
-## Component Integration: How GUI, Core, and ML Work Together
-
-The application follows a three-tier architecture where each component has specific responsibilities and communicates through well-defined interfaces:
-
-### **Integration Architecture**
+## 🏗️ **Architecture Overview**
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -194,172 +23,247 @@ The application follows a three-tier architecture where each component has speci
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-### **Data Flow and Communication**
+### **Three-Tier Architecture**
+- **GUI Layer**: Modern PySide6 desktop interface with multiple analysis views
+- **Core Layer**: AI chatbot, plotting engine, and data processing
+- **ML Layer**: Statistical analysis, feature selection, and machine learning
 
-#### **1. Application Initialization**
-```python
-# main.py - Entry point
-from ML.ai_agent_backend import StatisticalAIAgent
-agent = StatisticalAIAgent("ML/feature_matrix.csv")  # ML integration
-window = MainWindow(agent)  # GUI with ML agent
+## 🎯 **Key Features**
+
+### **🤖 AI-Powered Analysis**
+- **Natural Language Interface**: Ask for plots and analysis in plain English
+- **Intelligent Plot Generation**: Automatic visualization based on conversation context
+- **Statistical Insights**: Professional data science analysis and recommendations
+- **Learning Capability**: AI remembers your preferences and improves over time
+
+### **📊 Advanced Visualization**
+- **Multiple Plot Types**: Histograms, boxplots, scatter plots, correlation matrices
+- **Time Series Analysis**: Temporal pattern detection and trend analysis
+- **Frequency Domain**: FFT analysis for signal processing applications
+- **Sensor-Specific**: Specialized analysis for accelerometer, temperature, pressure, humidity
+
+### **🔬 Statistical Engine**
+- **Feature Discrimination**: Identify most important features between classes
+- **Statistical Significance**: Hypothesis testing and confidence intervals
+- **Class Comparison**: OK vs KO analysis with detailed metrics
+- **Performance Metrics**: Accuracy, precision, recall, and F1 scores
+
+### **💻 Modern Interface**
+- **Chat-Based UI**: Natural conversation with AI for data analysis
+- **Multiple Views**: Chat, Help, and integrated plotting interface
+- **Real-Time Updates**: Dynamic plot generation and analysis results
+- **Professional Design**: Clean, intuitive interface for data scientists
+
+## 🛠️ **Technical Stack**
+
+### **Core Technologies**
+- **GUI Framework**: PySide6 (Qt for Python) with modern UI components
+- **AI Model**: Llama-3.2-1B with transformers library and CUDA support
+- **Data Processing**: pandas, numpy, scipy for statistical analysis
+- **Visualization**: matplotlib, seaborn for professional charts
+- **Machine Learning**: scikit-learn for feature selection and classification
+
+### **AI & ML Capabilities**
+- **Natural Language Understanding**: Advanced prompt engineering and response generation
+- **Memory Management**: Conversation context and user preference learning
+- **Pattern Recognition**: Intelligent detection of analysis and plot requests
+- **Statistical Expertise**: Professional data science knowledge and insights
+
+## 📁 **Project Structure**
+
+```
+Statistical-AI-Agent/
+├── 📱 gui/                          # User Interface Layer
+│   ├── main_window.py               # Main application window
+│   ├── views/                       # Different analysis views
+│   │   ├── chat_view.py            # AI chat interface with plots
+│   │   └── help_view.py            # Help and documentation
+│   └── resources/                   # UI resources and icons
+├── 🧠 core/                         # Core AI and Business Logic
+│   ├── transformers_backend.py      # AI chatbot with Llama-3.2-1B
+│   ├── ml_plotter.py               # Advanced plotting engine
+│   ├── data_loader.py              # Data ingestion and preprocessing
+│   ├── ml_interface.py             # ML layer API wrapper
+│   ├── command_parser.py           # Natural language command parser
+│   ├── response_formatter.py       # AI response formatting
+│   └── prompt.json                 # Enhanced AI prompt system
+├── 🤖 ML/                          # Machine Learning Layer
+│   ├── ai_agent_backend.py         # Unified AI agent interface
+│   ├── statistical_engine.py       # Statistical analysis engine
+│   ├── plotting_engine.py          # ML-powered visualization
+│   ├── feature_matrix.csv          # Dataset for analysis
+│   └── requirements.txt            # ML dependencies
+├── 🎯 Llama-3.2-1B/               # AI model directory
+├── 📋 requirements.txt             # Main project dependencies
+├── 🚀 main.py                      # Application entry point
+└── 📖 README.md                    # This documentation
 ```
 
-#### **2. GUI ↔ Core Communication**
-- **GUI** (`gui/main_window.py`) creates the main application window
-- **Core** (`core/transformers_backend.py`) provides AI chatbot functionality
-- **Core** (`core/ml_plotter.py`) handles plotting requests from GUI
-- **Core** (`core/data_loader.py`) manages data loading for all views
+## 🚀 **Quick Start**
 
-#### **3. Core ↔ ML Communication**
-- **Core** plotting engine references `ML/feature_matrix.csv` for data
-- **Core** AI prompts reference ML data sources
-- **ML** (`ML/ai_agent_backend.py`) provides unified interface for all operations
-
-### **Component Responsibilities**
-
-#### **GUI Layer (`gui/`)**
-- **User Interface**: PySide6-based desktop application
-- **View Management**: 5 different views (Chat, Data, Stats, Model, Plot)
-- **Event Handling**: User interactions, file loading, view switching
-- **Plot Display**: Integration with matplotlib for visualization rendering
-
-#### **Core Layer (`core/`)**
-- **AI Chatbot**: Llama-3.2-1B model integration with transformers
-- **Plot Generation**: Natural language parsing and matplotlib figure creation
-- **Data Processing**: CSV loading and preprocessing
-- **Prompt Management**: Specialized AI prompts for data analysis
-
-#### **ML Layer (`ML/`)**
-- **Statistical Analysis**: Advanced feature discrimination and class analysis
-- **Unified Agent Interface**: Single entry point for all ML operations
-- **Plotting Engine**: Comprehensive visualization system
-- **Data Management**: Feature matrix handling and sensor data processing
-
-### **Integration Points**
-
-#### **1. Data Flow**
-```
-User Input (GUI) → Chat View → AI Backend (Core) → ML Agent (ML) → Statistical Engine (ML) → Plotting Engine (ML) → Plot View (GUI)
-```
-
-#### **2. File Loading**
-```
-File Dialog (GUI) → Data Loader (Core) → Feature Matrix (ML) → All Views (GUI)
-```
-
-#### **3. Plot Generation**
-```
-Natural Language (GUI Chat) → Plot Request Detection (Core) → Plotting Engine (ML) → Matplotlib Figure → Plot View (GUI)
-```
-
-#### **4. Statistical Analysis**
-```
-Analysis Request (GUI) → Statistical Engine (ML) → Results Cache → Statistics View (GUI)
-```
-
-### **Key Integration Features**
-
-#### **Unified AI Agent Interface**
-- **ML** provides `StatisticalAIAgent` class as single entry point
-- **Core** AI chatbot integrates with ML agent for comprehensive analysis
-- **GUI** uses ML agent for all statistical and plotting operations
-
-#### **Natural Language Processing**
-- **Core** AI understands sensor data analysis requests
-- **ML** plotting engine parses natural language plot requests
-- **GUI** chat interface triggers automatic plot generation
-
-#### **Data Consistency**
-- All components reference `ML/feature_matrix.csv` as primary data source
-- **ML** statistical engine provides consistent analysis across all views
-- **Core** plotting engine ensures visualization consistency
-
-#### **Performance Optimization**
-- **ML** agent caches expensive statistical analysis results
-- **Core** AI model uses 4-bit quantization for faster inference
-- **GUI** uses efficient Qt widgets for responsive interface
-
-### **Cross-Component Communication**
-
-#### **GUI → Core**
-- Chat messages sent to AI backend
-- File loading requests to data loader
-- Plot display requests to plotting engine
-
-#### **Core → ML**
-- Statistical analysis requests to ML agent
-- Plot generation requests to ML plotting engine
-- Data preprocessing requests to ML statistical engine
-
-#### **ML → GUI**
-- Analysis results displayed in statistics view
-- Generated plots displayed in plot view
-- Dataset overview shown in data view
-
-### **Error Handling and Fallbacks**
-- **ML** provides fallback data generation if feature matrix unavailable
-- **Core** AI handles conversation gracefully with error recovery
-- **GUI** shows appropriate error messages for failed operations
-
-### **Extensibility Points**
-- **ML** statistical engine supports new analysis methods
-- **Core** plotting engine supports new visualization types
-- **GUI** views can be extended with new functionality
-- **AI** prompts can be customized for different analysis domains
-
-## Dependencies
-
-### **Required Dependencies**
+### **1. Installation**
 ```bash
-# Core Dependencies
-pip install PySide6 qasync
-pip install transformers torch accelerate bitsandbytes
-pip install pandas numpy scipy scikit-learn
-pip install matplotlib seaborn
+# Clone the repository
+git clone <your-repo-url>
+cd AI-agent
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -r ML/requirements.txt
+
+# Download AI model (if not included)
+# Place Llama-3.2-1B model in the Llama-3.2-1B/ directory
 ```
 
-### **System Requirements**
-- **Python**: 3.8+
-- **RAM**: 8GB+ (16GB+ recommended)
-- **GPU**: NVIDIA with CUDA 11.8+ (optional)
-- **Storage**: 5GB+ free space
+### **2. Launch Application**
+```bash
+python main.py
+```
 
-## AI Plot Commands
+### **3. Start Analyzing**
+1. **Load Data**: Use File → Open Dataset to load your CSV data
+2. **Chat with AI**: Ask for analysis in natural language
+3. **Generate Plots**: Request visualizations through conversation
+4. **Get Insights**: Receive professional statistical analysis
 
-The AI assistant understands natural language requests for generating plots. Here are the key commands:
+## 💬 **AI Commands & Examples**
 
-### **Plot Types**
+### **📈 Plot Generation**
 ```
 "Show me a boxplot of accelerometer data"
 "Create a histogram of temperature readings"
-"Display correlation matrix"
-"Generate time series analysis"
-"Show frequency spectrum"
-"Create scatter plot"
+"Display correlation matrix between sensors"
+"Generate time series analysis of pressure data"
+"Show frequency spectrum of vibration data"
+"Create scatter plot of feature relationships"
 ```
 
-### **Sensor Analysis**
+### **🔍 Statistical Analysis**
 ```
-"Show me accelerometer data"
-"Analyze temperature patterns"
-"Display pressure sensor data"
-"Plot humidity distribution"
-```
-
-### **Statistical Analysis**
-```
-"What are the best features?"
-"Compare OK vs KO samples"
-"Show feature importance"
-"Analyze the dataset"
+"What are the most discriminative features?"
+"Compare OK vs KO samples statistically"
+"Show me feature importance ranking"
+"Analyze the dataset for patterns"
+"Give me a statistical summary"
 ```
 
-### **Quick Commands**
+### **📊 Sensor-Specific Analysis**
 ```
-"Give me a quick overview"
-"Show me the most important plots"
-"Create comprehensive analysis"
-"Generate dashboard"
+"Analyze accelerometer sensor patterns"
+"Show temperature sensor distribution"
+"Compare pressure readings between classes"
+"Display humidity sensor correlations"
+"Analyze microphone frequency data"
 ```
 
-**Tips**: Be specific with sensor names and analysis types. The AI will automatically generate plots and display them in the Plot View. ALL dependencies exist in requirement.txt 
+### **🎯 Advanced Requests**
+```
+"Find the best features for classification"
+"Show me statistical significance tests"
+"Generate comprehensive analysis report"
+"Identify outliers in the dataset"
+"Recommend next analysis steps"
+```
+
+## 🔧 **Configuration & Customization**
+
+### **AI Prompt System**
+The enhanced `core/prompt.json` provides:
+- **Professional Data Scientist Persona**: Expert-level AI responses
+- **Memory Patterns**: Learning user preferences and analysis patterns
+- **Response Templates**: Consistent, professional communication
+- **Keyword Mapping**: Intelligent detection of analysis requests
+
+### **Core Modules**
+- **ML Interface**: Clean API wrapper for ML layer operations
+- **Command Parser**: Natural language understanding for user queries
+- **Response Formatter**: Professional formatting of analysis results
+- **Plotting Engine**: Advanced visualization capabilities
+
+### **Statistical Engine**
+- **Feature Selection**: Identifies most discriminative features
+- **Class Comparison**: Detailed OK vs KO analysis
+- **Performance Metrics**: Comprehensive ML model evaluation
+- **Insight Generation**: Actionable business recommendations
+
+## 📊 **Data Requirements**
+
+### **Supported Formats**
+- **CSV Files**: Primary data format with pandas compatibility
+- **Sensor Data**: Accelerometer, gyroscope, magnetometer, temperature, pressure, humidity
+- **Classification Labels**: OK/KO or custom class labels
+- **Feature Matrix**: Numerical features with statistical measures
+
+### **Data Structure**
+```csv
+sample,label,feature1,feature2,feature3,...
+Sample_001,OK,0.123,0.456,0.789,...
+Sample_002,KO,0.234,0.567,0.890,...
+```
+
+## 🎨 **Visualization Types**
+
+### **Statistical Plots**
+- **Boxplots**: Class comparison and outlier detection
+- **Histograms**: Distribution analysis and pattern recognition
+- **Scatter Plots**: Feature relationship exploration
+- **Correlation Matrices**: Feature association analysis
+
+### **Advanced Visualizations**
+- **Time Series**: Temporal pattern analysis
+- **Frequency Domain**: FFT-based signal analysis
+- **Feature Importance**: Discriminative feature ranking
+- **Class Comparison**: Statistical significance visualization
+
+## 🔍 **Troubleshooting**
+
+### **Common Issues**
+1. **Model Loading**: Ensure Llama-3.2-1B model is properly downloaded
+2. **CUDA Support**: Install appropriate torch version for your GPU
+3. **Dependencies**: Use exact versions from requirements.txt
+4. **Data Loading**: Check CSV format and file permissions
+
+### **Performance Tips**
+- **GPU Acceleration**: Enable CUDA for faster AI inference
+- **Data Caching**: Large datasets are automatically cached
+- **Memory Management**: Close unused plots to free memory
+- **Batch Processing**: Process multiple requests efficiently
+
+## 🚀 **Future Enhancements**
+
+### **Planned Features**
+- **Real-Time Data Streaming**: Live sensor data analysis
+- **Advanced ML Models**: Deep learning integration
+- **Cloud Deployment**: Web-based analysis platform
+- **API Integration**: RESTful endpoints for external access
+- **Multi-Language Support**: Internationalization features
+
+### **Extensibility**
+- **Plugin System**: Custom analysis modules
+- **Custom Plots**: User-defined visualization types
+- **Data Connectors**: Database and API integrations
+
+### **Development Setup**
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+### **Code Standards**
+- **Documentation**: Comprehensive docstrings and comments
+- **Performance**: Optimize for large datasets and real-time use
+
+## 📄 **License**
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 **Acknowledgments**
+
+- **Llama-3.2-1B**: Meta's open-source language model
+- **PySide6**: Qt for Python framework
+- **Transformers**: Hugging Face's AI library
+- **Scientific Python**: pandas, numpy, scipy, matplotlib ecosystem
+---
+
+**🎯 Ready to transform your data analysis workflow? Launch the Statistical AI Agent and experience the future of intelligent data science!** 

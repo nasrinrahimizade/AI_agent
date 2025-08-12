@@ -26,6 +26,15 @@
     "line": ["line", "lineplot", "line chart", "trend line", "continuous", "progression"],
     "bar": ["bar", "barplot", "bar chart", "categorical", "comparison", "ranking"]
   },
+  "statistical_keywords": {
+    "descriptive": ["mean", "median", "mode", "average", "avg", "arithmetic mean"],
+    "variability": ["std", "standard deviation", "variance", "var", "spread", "deviation"],
+    "range": ["min", "max", "minimum", "maximum", "range", "span", "lowest", "highest"],
+    "distribution": ["skewness", "skew", "kurtosis", "peakedness", "asymmetry", "shape"],
+    "quantiles": ["iqr", "interquartile range", "quartile", "percentile", "50th percentile"],
+    "counts": ["count", "number", "total count", "frequency", "occurrence"],
+    "features": ["top features", "best features", "discriminative features", "important features", "key features"]
+  },
   "sensor_keywords": {
     "accelerometer": ["accelerometer", "acc", "acceleration", "motion", "movement", "vibration"],
     "gyroscope": ["gyroscope", "gyro", "rotation", "angular", "orientation", "spin"],
