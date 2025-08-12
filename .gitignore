@@ -1,16 +1,13 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-__pycache__\
 *.py[cod]
 *$py.class
-*.pyc
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -22,10 +19,13 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-Llama-3.2-1B/
+MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -34,7 +34,6 @@ Llama-3.2-1B/
 *.spec
 
 # Installer logs
-debug.log
 pip-log.txt
 pip-delete-this-directory.txt
 
@@ -48,51 +47,134 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
 .hypothesis/
 .pytest_cache/
 
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
 
 # pyenv
 .python-version
 
 # pipenv
-Pipfile.lock
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
 
-# mypy
-.mypy_cache/
-.dmypy.json
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
 
-# Pyre type checker
-.pyre/
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
 
-# VS Code
-.vscode/
+# SageMath parsed files
+*.sage.py
 
-# PyCharm
-.idea/
-
-# MacOS
-.DS_Store
-
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Local environment variables
+# Environments
 .env
-.env.*
-
-# Log files
-*.log
-
-# Matplotlib plots
-*.png
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # Spyder project settings
 .spyderproject
 .spyproject
 
 # Rope project settings
-.ropeproject/ 
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Python cache files (comprehensive)
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.cpython-*.pyc
+*.cython-*.pyc
+*.pypy-*.pyc
+*.jython-*.pyc
+*.ironpython-*.pyc
+*.pypy-*.pyo
+*.jython-*.pyo
+*.ironpython-*.pyo
+
+# Cache directories
+.cache/
+cache/
+*.cache
+__pycache__/
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Project-specific
+*.log
+temp/
+tmp/
+output/
+results/
+plots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf 
