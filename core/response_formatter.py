@@ -1,512 +1,661 @@
 """
 Response Formatter Module
 
-This module takes ML results and formats them into user-friendly responses,
-including text summaries, follow-up suggestions, and plot requests.
+This module takes ML output and formats it into clear text responses
+for the GUI, including optional tables and plot suggestions.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
 import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
 
 class ResponseFormatter:
-    """
-    Formats ML results into user-friendly responses with summaries,
-    explanations, and follow-up suggestions.
-    """
+    """Format ML results into user-friendly responses"""
     
     def __init__(self):
-        """Initialize the response formatter"""
         self.logger = logging.getLogger(__name__)
         
-        # Response templates
+        # Templates for different response types
         self.templates = {
-            'statistic_summary': {
-                'mean': "The mean value of {feature} is {value:.2f}",
-                'median': "The median value of {feature} is {value:.2f}",
-                'std': "The standard deviation of {feature} is {value:.2f}",
-                'variance': "The variance of {feature} is {value:.2f}",
-                'min': "The minimum value of {feature} is {value:.2f}",
-                'max': "The maximum value of {feature} is {value:.2f}",
-                'range': "The range of {feature} is {value:.2f}",
-                'count': "There are {value} samples for {feature}",
-                'top_features': "The top discriminative features are: {features}",
-                'discriminative_features': "The most discriminative features between classes are: {features}"
+            'mean': {
+                'single': "The mean {sensor} is {value}",
+                'grouped': "Mean {sensor} by class:\n{grouped_results}",
+                'filtered': "The mean {sensor} for {classes} samples is {value}"
             },
-            
-            'comparison_summary': {
-                'class_comparison': "Comparing {class1} vs {class2} for {feature}:",
-                'statistical_significance': "The difference is {significance} (p-value: {p_value:.4f})",
-                'effect_size': "Effect size: {effect_size}",
-                'interpretation': "This suggests {interpretation}"
+            'median': {
+                'single': "The median {sensor} is {value}",
+                'grouped': "Median {sensor} by class:\n{grouped_results}",
+                'filtered': "The median {sensor} for {classes} samples is {value}"
             },
-            
-            'plot_suggestion': {
-                'histogram': "A histogram would show the distribution of {feature}",
-                'boxplot': "A boxplot would compare {feature} across classes",
-                'scatter': "A scatter plot would show the relationship between {feature1} and {feature2}",
-                'correlation': "A correlation matrix would show feature relationships",
-                'timeseries': "A time series plot would show temporal patterns in {feature}"
+            'variance': {
+                'single': "The variance of {sensor} is {value}",
+                'grouped': "Variance of {sensor} by class:\n{grouped_results}",
+                'filtered': "The variance of {sensor} for {classes} samples is {value}"
             },
-            
-            'follow_up_suggestions': {
-                'statistic': [
-                    "Would you like to see the distribution of this feature?",
-                    "Should I compare this across different classes?",
-                    "Would you like to see how this relates to other features?"
-                ],
-                'comparison': [
-                    "Would you like to see a visual comparison?",
-                    "Should I analyze other features for similar patterns?",
-                    "Would you like to see the statistical significance details?"
-                ],
-                'analysis': [
-                    "Would you like me to generate a plot for this analysis?",
-                    "Should I look for similar patterns in other features?",
-                    "Would you like to see the top discriminative features?"
-                ]
+            'std': {
+                'single': "The standard deviation of {sensor} is {value}",
+                'grouped': "Standard deviation of {sensor} by class:\n{grouped_results}",
+                'filtered': "The standard deviation of {sensor} for {classes} samples is {value}"
+            },
+            'standard deviation': {
+                'single': "The standard deviation of {sensor} is {value}",
+                'grouped': "Standard deviation of {sensor} by class:\n{grouped_results}",
+                'filtered': "The standard deviation of {sensor} for {classes} samples is {value}"
+            },
+            'min': {
+                'single': "The minimum {sensor} is {value}",
+                'grouped': "Minimum {sensor} by class:\n{grouped_results}",
+                'filtered': "The minimum {sensor} for {classes} samples is {value}"
+            },
+            'minimum': {
+                'single': "The minimum {sensor} is {value}",
+                'grouped': "Minimum {sensor} by class:\n{grouped_results}",
+                'filtered': "The minimum {sensor} for {classes} samples is {value}"
+            },
+            'max': {
+                'single': "The maximum {sensor} is {value}",
+                'grouped': "Maximum {sensor} by class:\n{grouped_results}",
+                'filtered': "The maximum {sensor} for {classes} samples is {value}"
+            },
+            'maximum': {
+                'single': "The maximum {sensor} is {value}",
+                'grouped': "Maximum {sensor} by class:\n{grouped_results}",
+                'filtered': "The maximum {sensor} for {classes} samples is {value}"
+            },
+            'count': {
+                'single': "The count of {sensor} samples is {value}",
+                'grouped': "Count of {sensor} samples by class:\n{grouped_results}",
+                'filtered': "The count of {sensor} samples for {classes} is {value}"
+            },
+            'n': {
+                'single': "The count of {sensor} samples is {value}",
+                'grouped': "Count of {sensor} samples by class:\n{grouped_results}",
+                'filtered': "The count of {sensor} samples for {classes} is {value}"
             }
         }
         
-        # Statistical significance interpretations
-        self.significance_interpretations = {
-            'high': 'very strong evidence of a difference',
-            'medium': 'moderate evidence of a difference',
-            'low': 'weak evidence of a difference',
-            'none': 'no significant difference'
-        }
-        
-        # Effect size interpretations
-        self.effect_size_interpretations = {
-            'large': 'a substantial difference between groups',
-            'medium': 'a moderate difference between groups',
-            'small': 'a small but meaningful difference between groups',
-            'negligible': 'a negligible difference between groups'
-        }
-    
-    def format_statistic_response(self, result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-        """
-        Format a statistical result into a user-friendly response
-        
-        Args:
-            result: Result from ML interface
-            command: Parsed command object
-            
-        Returns:
-            Formatted response dictionary
-        """
-        try:
-            if result['status'] != 'success':
-                return self._format_error_response(result, "statistic")
-            
-            statistic = command.statistic if hasattr(command, 'statistic') else 'unknown'
-            feature = command.target_features[0] if command.target_features else 'the feature'
-            
-            # Format the main result
-            if statistic == 'top_features' or statistic == 'discriminative_features':
-                response = self._format_top_features_response(result, feature)
-            else:
-                response = self._format_basic_statistic_response(result, statistic, feature)
-            
-            # Add follow-up suggestions
-            response['follow_up_suggestions'] = self._get_follow_up_suggestions('statistic', command)
-            
-            # Add plot suggestions if appropriate
-            response['plot_suggestions'] = self._get_plot_suggestions(statistic, command.target_features)
-            
-            return response
-            
-        except Exception as e:
-            self.logger.error(f"Error formatting statistic response: {e}")
-            return self._format_error_response(result, "statistic")
-    
-    def format_comparison_response(self, result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-        """
-        Format a comparison result into a user-friendly response
-        
-        Args:
-            result: Result from ML interface
-            command: Parsed command object
-            
-        Returns:
-            Formatted response dictionary
-        """
-        try:
-            if result['status'] != 'success':
-                return self._format_error_response(result, "comparison")
-            
-            feature = command.target_features[0] if command.target_features else 'the feature'
-            classes = command.comparison_classes if hasattr(command, 'comparison_classes') else ['OK', 'KO']
-            
-            response = {
-                'type': 'comparison',
-                'title': f"Comparison: {feature} across classes",
-                'summary': self._format_comparison_summary(result, feature, classes),
-                'details': self._format_comparison_details(result),
-                'interpretation': self._format_comparison_interpretation(result),
-                'follow_up_suggestions': self._get_follow_up_suggestions('comparison', command),
-                'plot_suggestions': self._get_plot_suggestions('comparison', command.target_features)
-            }
-            
-            return response
-            
-        except Exception as e:
-            self.logger.error(f"Error formatting comparison response: {e}")
-            return self._format_error_response(result, "comparison")
-    
-    def format_analysis_response(self, result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-        """
-        Format an analysis result into a user-friendly response
-        
-        Args:
-            result: Result from ML interface
-            command: Parsed command object
-            
-        Returns:
-            Formatted response dictionary
-        """
-        try:
-            if result['status'] != 'success':
-                return self._format_error_response(result, "analysis")
-            
-            analysis_type = getattr(command, 'analysis_type', 'general')
-            features = command.target_features if hasattr(command, 'target_features') else []
-            
-            response = {
-                'type': 'analysis',
-                'title': f"{analysis_type.title()} Analysis",
-                'summary': self._format_analysis_summary(result, analysis_type),
-                'key_findings': self._extract_key_findings(result),
-                'insights': self._extract_insights(result),
-                'follow_up_suggestions': self._get_follow_up_suggestions('analysis', command),
-                'plot_suggestions': self._get_plot_suggestions(analysis_type, features)
-            }
-            
-            return response
-            
-        except Exception as e:
-            self.logger.error(f"Error formatting analysis response: {e}")
-            return self._format_error_response(result, "analysis")
-    
-    def format_plot_response(self, result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-        """
-        Format a plot result into a user-friendly response
-        
-        Args:
-            result: Result from ML interface
-            command: Parsed command object
-            
-        Returns:
-            Formatted response dictionary
-        """
-        try:
-            if result['status'] != 'success':
-                return self._format_error_response(result, "plot")
-            
-            plot_type = getattr(command, 'plot_type', 'unknown')
-            features = command.target_features if hasattr(command, 'target_features') else []
-            
-            response = {
-                'type': 'plot',
-                'title': f"{plot_type.title()} Generated",
-                'summary': f"I've created a {plot_type} showing {', '.join(features) if features else 'the requested data'}",
-                'plot_data': result.get('plot_data', {}),
-                'follow_up_suggestions': [
-                    "Would you like to analyze this visualization further?",
-                    "Should I generate additional plots for comparison?",
-                    "Would you like to see statistical details for this data?"
-                ]
-            }
-            
-            return response
-            
-        except Exception as e:
-            self.logger.error(f"Error formatting plot response: {e}")
-            return self._format_error_response(result, "plot")
-    
-    def _format_basic_statistic_response(self, result: Dict[str, Any], statistic: str, feature: str) -> Dict[str, Any]:
-        """Format a basic statistical result"""
-        result_data = result.get('result', {})
-        
-        if isinstance(result_data, dict):
-            # Grouped results (e.g., by class)
-            if 'OK' in result_data and 'KO' in result_data:
-                summary = f"Mean {statistic} for {feature}: OK = {result_data['OK']:.2f}, KO = {result_data['KO']:.2f}"
-                details = result_data
-            else:
-                summary = f"{statistic.title()} for {feature}: {result_data}"
-                details = result_data
-        else:
-            summary = f"{statistic.title()} for {feature}: {result_data}"
-            details = result_data
-        
-        return {
-            'type': 'statistic',
-            'title': f"{statistic.title()} Analysis: {feature}",
-            'summary': summary,
-            'details': details,
-            'statistic_type': statistic,
-            'feature': feature
+        # Sensor name mappings for display
+        self.sensor_display_names = {
+            'HTS221_TEMP': 'HTS221 Temperature',
+            'HTS221_HUM': 'HTS221 Humidity',
+            'LPS22HH_PRESS': 'LPS22HH Pressure',
+            'IIS3DWB_ACC': 'IIS3DWB Acceleration',
+            'temperature_mean': 'Temperature',
+            'humidity_mean': 'Humidity',
+            'pressure_mean': 'Pressure',
+            'acceleration_x_mean': 'Acceleration X-axis',
+            'acceleration_y_mean': 'Acceleration Y-axis',
+            'acceleration_z_mean': 'Acceleration Z-axis',
+            'gyroscope_x_mean': 'Gyroscope X-axis',
+            'gyroscope_y_mean': 'Gyroscope Y-axis',
+            'gyroscope_z_mean': 'Gyroscope Z-axis',
+            'microphone_mean': 'Microphone'
         }
     
-    def _format_top_features_response(self, result: Dict[str, Any], feature: str) -> Dict[str, Any]:
-        """Format a top features result"""
-        features_data = result.get('result', [])
-        
-        if isinstance(features_data, list) and features_data:
-            top_features = []
-            for i, feat in enumerate(features_data[:5], 1):  # Show top 5
-                if isinstance(feat, dict):
-                    name = feat.get('feature_name', f'Feature_{i}')
-                    score = feat.get('separation_score', 0)
-                    significance = feat.get('statistical_significance', 'Unknown')
-                    top_features.append(f"{i}. {name} (Score: {score:.3f}, {significance})")
+    def format_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format ML result into a user-friendly response"""
+        try:
+            if ml_result.get('status') == 'error':
+                return self._format_error_response(parsed_command, ml_result)
+            
+            command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
+            response_type = getattr(parsed_command, 'response_type', 'auto')
+            target_column = parsed_command.target_column
+            
+            # Route to appropriate formatter
+            try:
+                if command_type == 'top_features':
+                    formatted_response = self._format_top_features_response(parsed_command, ml_result)
+                elif command_type == 'plot':
+                    formatted_response = self._format_plot_response(parsed_command, ml_result)
+                elif command_type == 'comparison':
+                    formatted_response = self._format_comparison_response(parsed_command, ml_result)
+                elif command_type == 'analysis':
+                    formatted_response = self._format_analysis_response(parsed_command, ml_result)
                 else:
-                    top_features.append(f"{i}. {feat}")
+                    # Default to statistic response
+                    formatted_response = self._format_statistic_response(parsed_command, ml_result)
+            except Exception as formatter_error:
+                self.logger.error(f"Error in specific formatter for {command_type}: {formatter_error}")
+                # Fallback to error response
+                return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
             
-            summary = f"Top discriminative features:\n" + "\n".join(top_features)
+            # For visual responses, keep the main response short and direct
+            if response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']:
+                # Keep only the main response, minimize context and suggestions
+                formatted_response['main_response'] = formatted_response['main_response']
+                formatted_response['context'] = "Visualization ready."
+                formatted_response['suggestions'] = formatted_response['suggestions'][:2]  # Limit to 2 suggestions
+            
+            # Add response type information
+            formatted_response['response_type'] = response_type
+            formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+            
+            return formatted_response
+                
+        except Exception as e:
+            self.logger.error(f"Error formatting response: {e}")
+            return self._format_error_response(parsed_command, {'message': f'Formatting error: {str(e)}'})
+    
+    def _ensure_statistic_template(self, statistic: str) -> str:
+        """Ensure a template exists for the given statistic, create one if missing"""
+        if statistic in self.templates:
+            return statistic
+        
+        # Create a generic template for the missing statistic
+        # Use safe formatting that works with both numeric and string values
+        self.templates[statistic] = {
+            'single': f"The {statistic} of {{sensor}} is {{value}}",
+            'grouped': f"{statistic.title()} of {{sensor}} by class:\n{{grouped_results}}",
+            'filtered': f"The {statistic} of {{sensor}} for {{classes}} samples is {{value}}"
+        }
+        
+        self.logger.info(f"Created template for missing statistic: {statistic}")
+        return statistic
+
+    def _format_statistic_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a statistical response"""
+        statistic = parsed_command.statistic.value if parsed_command.statistic else 'mean'
+        target_column = parsed_command.target_column
+        class_filters = parsed_command.class_filters
+        grouping = parsed_command.grouping
+        
+        # Get display name for sensor
+        sensor_display = self.sensor_display_names.get(target_column, target_column)
+        
+        # Ensure we have a template for this statistic
+        statistic = self._ensure_statistic_template(statistic)
+        
+        # Check data quality and add warnings if needed
+        data_quality = ml_result.get('data_quality', 'unknown')
+        confidence = ml_result.get('confidence', 'unknown')
+        warnings = ml_result.get('warnings', [])
+        
+        # Format the main response
+        if grouping == 'class' and isinstance(ml_result.get('result'), dict):
+            # Grouped results
+            grouped_text = self._format_grouped_results(ml_result['result'])
+            main_text = self.templates[statistic]['grouped'].format(
+                sensor=sensor_display,
+                grouped_results=grouped_text
+            )
+        elif class_filters:
+            # Filtered results
+            classes = ', '.join(class_filters)
+            value = ml_result.get('result', 'N/A')
+            # Ensure value is properly formatted for the template
+            if isinstance(value, (int, float)):
+                formatted_value = f"{value:.2f}"
+            else:
+                formatted_value = str(value)
+            main_text = self.templates[statistic]['filtered'].format(
+                sensor=sensor_display,
+                classes=classes,
+                value=formatted_value
+            )
         else:
-            summary = "No discriminative features found"
-            top_features = []
+            # Single result
+            value = ml_result.get('result', 'N/A')
+            # Ensure value is properly formatted for the template
+            if isinstance(value, (int, float)):
+                formatted_value = f"{value:.2f}"
+            else:
+                formatted_value = str(value)
+            main_text = self.templates[statistic]['single'].format(
+                sensor=sensor_display,
+                value=formatted_value
+            )
+        
+        # Add data quality context
+        context_parts = []
+        
+        # Add confidence information
+        if confidence == 'high':
+            context_parts.append("High confidence analysis based on sufficient data.")
+        elif confidence == 'medium':
+            context_parts.append("Medium confidence - consider collecting more samples for higher reliability.")
+        elif confidence == 'low':
+            context_parts.append("Low confidence - results may not be reliable due to limited data.")
+        
+        # Add data quality information
+        if data_quality == 'good':
+            context_parts.append("Data quality is good.")
+        elif data_quality == 'poor':
+            context_parts.append("⚠️ Data quality issues detected - verify results.")
+        
+        # Add warnings if any
+        if warnings:
+            context_parts.append(f"⚠️ Warnings: {', '.join(warnings)}")
+        
+        # Add sample count information if available
+        sample_count = ml_result.get('sample_count', 0)
+        if sample_count > 0:
+            context_parts.append(f"Analysis based on {sample_count} samples.")
+        
+        context = ' '.join(context_parts) if context_parts else "Analysis completed successfully."
+        
+        # Generate suggestions
+        suggestions = self._generate_suggestions(parsed_command, ml_result)
         
         return {
-            'type': 'statistic',
-            'title': "Top Discriminative Features",
-            'summary': summary,
-            'details': features_data,
-            'top_features': top_features
+            'status': 'success',
+            'main_response': main_text,
+            'context': context,
+            'suggestions': suggestions,
+            'data_source': ml_result.get('data_source', 'Unknown'),
+            'confidence': parsed_command.confidence,
+            'data_quality': data_quality,
+            'analysis_confidence': confidence,
+            'plot_suggestion': self._suggest_plot(parsed_command, ml_result)
         }
     
-    def _format_comparison_summary(self, result: Dict[str, Any], feature: str, classes: List[str]) -> str:
-        """Format a comparison summary"""
-        result_data = result.get('result', {})
+    def _format_top_features_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a top features response - text only, no plot suggestions"""
+        class_filters = parsed_command.class_filters
+        classes = class_filters if class_filters else ['OK', 'KO']
+        classes_text = ' and '.join(classes)
         
-        if 'class1_stats' in result_data and 'class2_stats' in result_data:
-            class1_stats = result_data['class1_stats']
-            class2_stats = result_data['class2_stats']
+        # Check data quality and confidence
+        data_quality = ml_result.get('data_quality', 'unknown')
+        confidence = ml_result.get('confidence', 'unknown')
+        warnings = ml_result.get('warnings', [])
+        analysis_method = ml_result.get('analysis_method', 'Statistical analysis')
+        
+        if ml_result.get('status') == 'success' and 'top_features' in ml_result:
+            features = ml_result['top_features']
+            feature_details = ml_result.get('feature_details', {})
+            count = len(features)
             
-            summary = f"Comparing {classes[0] if classes else 'Class 1'} vs {classes[1] if len(classes) > 1 else 'Class 2'} for {feature}:\n"
-            summary += f"• {classes[0] if classes else 'Class 1'}: Mean = {class1_stats.get('mean', 'N/A'):.2f}, Std = {class1_stats.get('std', 'N/A'):.2f}\n"
-            summary += f"• {classes[1] if len(classes) > 1 else 'Class 2'}: Mean = {class2_stats.get('mean', 'N/A'):.2f}, Std = {class2_stats.get('std', 'N/A'):.2f}"
+            # Format features with detailed analysis
+            feature_descriptions = []
+            for i, feature in enumerate(features, 1):
+                # Get human-readable sensor name
+                sensor_display = self.sensor_display_names.get(feature, feature)
+                
+                # Add statistical details if available
+                if feature in feature_details:
+                    details = feature_details[feature]
+                    f_stat = details.get('f_statistic', 0)
+                    p_value = details.get('p_value', 1.0)
+                    class_means = details.get('class_means', {})
+                    
+                    # Format class means
+                    mean_details = []
+                    for cls, mean_val in class_means.items():
+                        mean_details.append(f"{cls}: {mean_val:.2f}")
+                    
+                    # Add statistical significance information
+                    significance = "highly significant" if p_value < 0.01 else "significant" if p_value < 0.05 else "not significant"
+                    
+                    feature_descriptions.append(
+                        f"{i}. {sensor_display} (F-stat: {f_stat:.2f}, p-value: {p_value:.4f})\n"
+                        f"   Statistical significance: {significance}\n"
+                        f"   Class means: {', '.join(mean_details)}"
+                    )
+                else:
+                    feature_descriptions.append(f"{i}. {sensor_display}")
             
-            if 'difference' in result_data:
-                summary += f"\n• Difference: {result_data['difference']:.2f}"
+            feature_list = '\n'.join(feature_descriptions)
             
-            return summary
-        
-        return f"Comparison results for {feature} across classes"
-    
-    def _format_comparison_details(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format comparison details"""
-        result_data = result.get('result', {})
-        details = {}
-        
-        if 'p_value' in result_data:
-            details['p_value'] = result_data['p_value']
-            details['statistical_significance'] = result_data.get('statistical_significance', 'Unknown')
-        
-        if 'effect_size' in result_data:
-            details['effect_size'] = result_data['effect_size']
-        
-        return details
-    
-    def _format_comparison_interpretation(self, result: Dict[str, Any]) -> str:
-        """Format comparison interpretation"""
-        result_data = result.get('result', {})
-        
-        interpretation = "Based on the analysis: "
-        
-        if 'statistical_significance' in result_data:
-            significance = result_data['statistical_significance']
-            if significance == 'Significant':
-                interpretation += "There is a statistically significant difference between the classes. "
-            else:
-                interpretation += "There is no statistically significant difference between the classes. "
-        
-        if 'effect_size' in result_data:
-            effect_size = result_data['effect_size']
-            interpretation += f"The effect size is {effect_size}, indicating "
-            interpretation += self.effect_size_interpretations.get(effect_size.lower(), "a meaningful difference")
-        
-        return interpretation
-    
-    def _format_analysis_summary(self, result: Dict[str, Any], analysis_type: str) -> str:
-        """Format an analysis summary"""
-        if analysis_type == 'feature':
-            return "Feature analysis completed. I've examined the dataset for patterns and relationships."
-        elif analysis_type == 'pattern':
-            return "Pattern analysis completed. I've identified recurring patterns in the data."
-        elif analysis_type == 'trend':
-            return "Trend analysis completed. I've examined temporal patterns and trends."
-        elif analysis_type == 'correlation':
-            return "Correlation analysis completed. I've examined relationships between features."
+            # Add detailed explanation with data quality context
+            main_text = f"Top {count} statistical indices that best separate {classes_text} samples:\n\n{feature_list}\n\n"
+            main_text += f"These features were selected using {analysis_method} (ANOVA F-test), which measures the discriminative power "
+            main_text += f"between {classes_text} classes. Higher F-statistics indicate greater separation between classes, "
+            main_text += f"making these features most effective for classification and quality control purposes."
+            
+            # Add sample count information
+            sample_count = ml_result.get('sample_count', 0)
+            if sample_count > 0:
+                main_text += f"\n\nAnalysis based on {sample_count} samples from the dataset."
+            
         else:
-            return "Analysis completed. I've examined the dataset for insights and patterns."
+            # Fallback to mock data
+            features = ['temperature_mean', 'humidity_mean', 'pressure_mean']
+            count = len(features)
+            feature_descriptions = []
+            for i, feature in enumerate(features, 1):
+                sensor_display = self.sensor_display_names.get(feature, feature)
+                feature_descriptions.append(f"{i}. {sensor_display}")
+            
+            feature_list = '\n'.join(feature_descriptions)
+            main_text = f"Top {count} statistical indices that best separate {classes_text} samples:\n\n{feature_list}\n\n"
+            main_text += f"These features were selected based on their discriminative power between {classes_text} classes."
+        
+        # Build context with data quality information
+        context_parts = []
+        
+        # Add analysis method
+        context_parts.append(f"Feature selection analysis completed using {analysis_method}.")
+        
+        # Add confidence information
+        if confidence == 'high':
+            context_parts.append("High confidence analysis based on sufficient data.")
+        elif confidence == 'medium':
+            context_parts.append("Medium confidence - consider collecting more samples for higher reliability.")
+        elif confidence == 'low':
+            context_parts.append("Low confidence - results may not be reliable due to limited data.")
+        
+        # Add data quality information
+        if data_quality == 'good':
+            context_parts.append("Data quality is good.")
+        elif data_quality == 'poor':
+            context_parts.append("⚠️ Data quality issues detected - verify results.")
+        
+        # Add warnings if any
+        if warnings:
+            context_parts.append(f"⚠️ Warnings: {', '.join(warnings)}")
+        
+        context = ' '.join(context_parts)
+        
+        suggestions = [
+            "Request detailed statistical analysis of any of these top features",
+            "Compare the distributions of these features between classes",
+            "Ask for correlation analysis between these features"
+        ]
+        
+        return {
+            'status': 'success',
+            'main_response': main_text,
+            'context': context,
+            'suggestions': suggestions,
+            'data_source': ml_result.get('data_source', 'Mock data'),
+            'confidence': parsed_command.confidence,
+            'data_quality': data_quality,
+            'analysis_confidence': confidence,
+            'plot_suggestion': None  # No plot suggestion for text-only responses
+        }
     
-    def _extract_key_findings(self, result: Dict[str, Any]) -> List[str]:
-        """Extract key findings from analysis result"""
-        findings = []
-        result_data = result.get('result', {})
+    def _format_plot_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a plot response"""
+        plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'boxplot'
+        target_features = parsed_command.target_features
         
-        # Look for common analysis result patterns
-        if 'best_discriminative_features' in result_data:
-            features = result_data['best_discriminative_features']
-            if features:
-                top_feature = features[0]
-                if isinstance(top_feature, dict):
-                    name = top_feature.get('feature_name', 'Unknown')
-                    score = top_feature.get('separation_score', 0)
-                    findings.append(f"Top discriminative feature: {name} (separation score: {score:.3f})")
+        if target_features:
+            features_text = ', '.join(target_features)
+        else:
+            features_text = 'the requested data'
         
-        if 'class_distribution' in result_data:
-            dist = result_data['class_distribution']
-            findings.append(f"Class distribution: {', '.join([f'{k}: {v}' for k, v in dist.items()])}")
+        # Short, direct response for plot requests
+        if ml_result.get('plot_ready', False):
+            main_text = f"✅ {plot_type.title()} created and ready to display."
+            plot_suggestion = plot_type
+        else:
+            main_text = f" Preparing {plot_type} visualization..."
+            plot_suggestion = None
         
-        if 'total_samples' in result_data:
-            findings.append(f"Total samples analyzed: {result_data['total_samples']}")
+        # Minimal context and suggestions for plot responses
+        context = "Visualization ready."
+        suggestions = [
+            "Analyze the patterns shown",
+            "Request statistical details",
+            "Generate additional plots"
+        ]
         
-        return findings
+        return {
+            'status': 'success',
+            'main_response': main_text,
+            'context': context,
+            'suggestions': suggestions,
+            'data_source': ml_result.get('data_source', 'Plot generation'),
+            'confidence': parsed_command.confidence,
+            'plot_suggestion': plot_suggestion,
+            'plot_data': ml_result.get('plot_data'),
+            'plot_path': ml_result.get('plot_path'),
+            'figure': ml_result.get('figure')
+        }
     
-    def _extract_insights(self, result: Dict[str, Any]) -> List[str]:
-        """Extract insights from analysis result"""
-        insights = []
-        result_data = result.get('result', {})
+    def _format_comparison_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a comparison response"""
+        target_column = parsed_command.target_column
+        class_filters = parsed_command.class_filters
         
-        # Look for statistical insights
-        if 'statistical_insights' in result_data:
-            insights.extend(result_data['statistical_insights'])
+        if target_column and class_filters:
+            sensor_display = self.sensor_display_names.get(target_column, target_column)
+            classes_text = ' vs '.join(class_filters)
+            
+            # Short response for comparison with plot
+            main_text = f" Comparing {sensor_display} between {classes_text} samples."
+        else:
+            main_text = " Class comparison completed."
         
-        # Generate insights based on data
-        if 'best_discriminative_features' in result_data:
-            features = result_data['best_discriminative_features']
-            if len(features) > 0:
-                insights.append(f"Found {len(features)} discriminative features that can help distinguish between classes")
+        # Minimal context for visual responses
+        context = "Comparison analysis ready."
+        suggestions = [
+            "View the comparison plot",
+            "Request statistical details",
+            "Analyze other features"
+        ]
         
-        if 'model_performance' in result_data:
-            performance = result_data['model_performance']
-            if performance:
-                best_model = max(performance.items(), key=lambda x: x[1].get('accuracy', 0))
-                insights.append(f"Best performing model: {best_model[0]} with {best_model[1].get('accuracy', 0):.2f} accuracy")
-        
-        return insights
+        return {
+            'status': 'success',
+            'main_response': main_text,
+            'context': context,
+            'suggestions': suggestions,
+            'data_source': ml_result.get('data_source', 'Comparison analysis'),
+            'confidence': parsed_command.confidence,
+            'plot_suggestion': 'boxplot'
+        }
     
-    def _get_follow_up_suggestions(self, response_type: str, command: Any) -> List[str]:
-        """Get follow-up suggestions based on response type"""
-        suggestions = self.templates['follow_up_suggestions'].get(response_type, [])
+    def _format_analysis_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format an analysis response"""
+        analysis_type = parsed_command.analysis_type or 'general'
+        target_column = parsed_command.target_column
         
-        # Customize suggestions based on command content
-        if hasattr(command, 'target_features') and command.target_features:
-            feature = command.target_features[0]
-            suggestions.append(f"Would you like to analyze {feature} in more detail?")
+        if target_column:
+            sensor_display = self.sensor_display_names.get(target_column, target_column)
+            main_text = f" Analyzing {sensor_display}..."
+        else:
+            main_text = f" {analysis_type.title()} analysis in progress..."
         
-        if hasattr(command, 'comparison_classes') and command.comparison_classes:
-            classes = ' vs '.join(command.comparison_classes)
-            suggestions.append(f"Would you like to see a visual comparison of {classes}?")
+        # Minimal context for visual responses
+        context = "Analysis completed."
+        suggestions = [
+            "View the visualization",
+            "Request statistical details",
+            "Compare with other features"
+        ]
         
-        return suggestions
+        return {
+            'status': 'success',
+            'main_response': main_text,
+            'context': context,
+            'suggestions': suggestions,
+            'data_source': ml_result.get('data_source', 'Analysis engine'),
+            'confidence': parsed_command.confidence,
+            'plot_suggestion': 'histogram'
+        }
     
-    def _get_plot_suggestions(self, plot_type: str, features: List[str]) -> List[str]:
-        """Get plot suggestions based on plot type and features"""
+    def _format_grouped_results(self, grouped_data: Dict[str, Any]) -> str:
+        """Format grouped results into readable text"""
+        lines = []
+        for class_name, value in grouped_data.items():
+            if isinstance(value, (int, float)):
+                formatted_value = f"{value:.2f}"
+            else:
+                formatted_value = str(value)
+            lines.append(f"• {class_name}: {formatted_value}")
+        return '\n'.join(lines)
+    
+    def _generate_context(self, parsed_command: Any, ml_result: Dict[str, Any]) -> str:
+        """Generate contextual information for the response"""
+        context_parts = []
+        
+        # Add confidence information
+        if parsed_command.confidence < 0.7:
+            context_parts.append("Note: Low confidence in request parsing - please verify the results.")
+        
+        # Add data source information
+        data_source = ml_result.get('data_source', 'Unknown')
+        if 'mock' in data_source.lower():
+            context_parts.append("Results based on mock data simulation.")
+        
+        # Add sample count information if available
+        if 'sample_count' in ml_result:
+            context_parts.append(f"Analysis based on {ml_result['sample_count']} samples.")
+        
+        return ' '.join(context_parts) if context_parts else "Analysis completed successfully."
+    
+    def _generate_suggestions(self, parsed_command: Any, ml_result: Dict[str, Any]) -> List[str]:
+        """Generate follow-up suggestions for the user"""
         suggestions = []
         
-        if plot_type == 'histogram':
-            for feature in features:
-                suggestions.append(f"Generate histogram of {feature}")
-        elif plot_type == 'boxplot':
-            for feature in features:
-                suggestions.append(f"Generate boxplot comparing {feature} across classes")
-        elif plot_type == 'scatter':
-            if len(features) >= 2:
-                suggestions.append(f"Generate scatter plot of {features[0]} vs {features[1]}")
-        elif plot_type == 'correlation':
-            suggestions.append("Generate correlation matrix of all features")
-        elif plot_type == 'comparison':
-            for feature in features:
-                suggestions.append(f"Generate comparison plot of {feature} across classes")
+        command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
+        target_column = parsed_command.target_column
         
-        return suggestions
+        # General suggestions
+        suggestions.append("Ask for other statistical measures of this sensor")
+        suggestions.append("Compare this sensor across different classes")
+        
+        # Specific suggestions based on command type
+        if command_type == 'top_features':
+            suggestions.append("Request detailed analysis of any of these features")
+            suggestions.append("Compare the distributions of these features between classes")
+            suggestions.append("Generate correlation plots for these features")
+        elif command_type == 'plot':
+            suggestions.append("Analyze the patterns shown in this visualization")
+            suggestions.append("Request statistical details for the plotted data")
+            suggestions.append("Generate additional plots for comparison")
+        elif command_type == 'comparison':
+            suggestions.append("Request statistical significance testing")
+            suggestions.append("Generate visual comparison plots")
+            suggestions.append("Analyze other features for similar patterns")
+        elif command_type == 'analysis':
+            suggestions.append("Request specific statistical measures")
+            suggestions.append("Generate visualizations of the findings")
+            suggestions.append("Compare with other features")
+        
+        # Sensor-specific suggestions
+        if target_column and 'temperature' in target_column.lower():
+            suggestions.append("Compare with humidity readings for environmental analysis")
+        elif target_column and 'acceleration' in target_column.lower():
+            suggestions.append("Request gyroscope data for complete motion analysis")
+        elif target_column and 'pressure' in target_column.lower():
+            suggestions.append("Correlate with temperature for atmospheric analysis")
+        
+        return suggestions[:3]  # Limit to 3 suggestions
     
-    def _format_error_response(self, result: Dict[str, Any], response_type: str) -> Dict[str, Any]:
+    def _suggest_plot(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Optional[str]:
+        """Suggest appropriate plot types for the data based on response type preference"""
+        command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
+        response_type = getattr(parsed_command, 'response_type', 'auto')
+        grouping = parsed_command.grouping
+        
+        # Respect response type preference
+        if response_type == "text":
+            return None  # No plot suggestion for text-only responses
+        elif response_type == "visual":
+            # Force plot suggestions for visual requests
+            if command_type == 'top_features':
+                return 'correlation_matrix'  # Best for feature analysis
+            elif command_type == 'comparison':
+                return 'boxplot'
+            elif command_type == 'statistic':
+                return 'histogram'
+            else:
+                return 'boxplot'  # Default visual response
+        
+        # Auto mode - use smart defaults
+        # Top features requests should not suggest plots - they're text-only
+        if command_type == 'top_features':
+            return None  # No plot suggestion for text-only responses
+        elif command_type == 'plot':
+            return 'histogram' # Default for plot
+        elif command_type == 'comparison':
+            return 'boxplot'
+        elif command_type == 'analysis':
+            return 'histogram' # Default for analysis
+        else:
+            if grouping == 'class':
+                if command_type in ['mean', 'median', 'std', 'variance']:
+                    return 'boxplot'
+                else:
+                    return 'histogram'
+            else:
+                if command_type in ['mean', 'median']:
+                    return 'histogram'
+                else:
+                    return 'scatter'
+    
+    def _format_error_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format an error response"""
+        error_message = ml_result.get('message', 'Unknown error occurred')
+        
         return {
-            'type': 'error',
-            'title': f"Error in {response_type}",
-            'summary': result.get('message', 'An error occurred'),
-            'error_details': result.get('error_details', ''),
+            'status': 'error',
+            'main_response': f"Sorry, I couldn't process that request: {error_message}",
+            'context': "Please check your request format and try again.",
             'suggestions': [
-                "Please check your request and try again",
-                "Make sure the data is properly loaded",
-                "Try a different analysis approach"
-            ]
+                "Make sure you specify a sensor name",
+                "Check that the class names are correct",
+                "Try rephrasing your request"
+            ],
+            'data_source': 'Error',
+            'confidence': 0.0,
+            'plot_suggestion': None
         }
     
-    def create_plot_request(self, command: Any, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Create a plot request based on the command and result
-        
-        Args:
-            command: Parsed command object
-            result: ML result
-            
-        Returns:
-            Plot request dictionary or None
-        """
+    def _get_response_guidance(self, response_type: str, command_type: str) -> str:
+        """Get guidance about the response type"""
+        if response_type == "text":
+            return "This is a text-based response providing detailed information and analysis."
+        elif response_type == "visual":
+            return "This response includes visualizations to help you better understand the data."
+        else:
+            # Auto mode
+            if command_type == 'top_features':
+                return "This analysis is presented as text since it's primarily informational."
+            elif command_type == 'plot':
+                return "This response includes the requested visualization."
+            elif command_type == 'statistic':
+                return "Statistical results are shown with optional visualization suggestions."
+            else:
+                return "Response format automatically determined based on request type."
+    
+    def format_table_data(self, ml_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Format ML result into table data for GUI display"""
         try:
-            if not hasattr(command, 'target_features') or not command.target_features:
+            if ml_result.get('status') != 'success':
                 return None
             
-            feature = command.target_features[0]
+            result = ml_result.get('result', {})
             
-            # Determine appropriate plot type based on command
-            if hasattr(command, 'plot_type') and command.plot_type:
-                plot_type = command.plot_type
-            elif hasattr(command, 'command_type'):
-                if command.command_type == 'comparison':
-                    plot_type = 'boxplot'
-                elif command.command_type == 'statistic':
-                    plot_type = 'histogram'
-                else:
-                    plot_type = 'scatter'
+            if isinstance(result, dict):
+                # Grouped results
+                headers = ['Class', 'Value']
+                rows = []
+                for class_name, value in result.items():
+                    if isinstance(value, (int, float)):
+                        formatted_value = f"{value:.2f}"
+                    else:
+                        formatted_value = str(value)
+                    rows.append([class_name, formatted_value])
+                
+                return {
+                    'headers': headers,
+                    'rows': rows,
+                    'title': 'Results by Class'
+                }
             else:
-                plot_type = 'histogram'
-            
-            # Create plot request
-            plot_request = {
-                'type': 'plot_request',
-                'plot_type': plot_type,
-                'features': command.target_features,
-                'filters': getattr(command, 'filters', {}),
-                'grouping': getattr(command, 'grouping', None),
-                'description': f"Generate {plot_type} for {feature}"
-            }
-            
-            return plot_request
-            
+                # Single result
+                return {
+                    'headers': ['Metric', 'Value'],
+                    'rows': [['Result', str(result)]],
+                    'title': 'Analysis Result'
+                }
+                
         except Exception as e:
-            self.logger.error(f"Error creating plot request: {e}")
+            self.logger.error(f"Error formatting table data: {e}")
             return None
 
 
-# Global instance for easy access
+# Global instance
 response_formatter = ResponseFormatter()
 
 # Convenience functions
-def format_statistic_response(result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-    """Format a statistical result"""
-    return response_formatter.format_statistic_response(result, command)
+def format_response(parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Format ML result into user-friendly response"""
+    return response_formatter.format_response(parsed_command, ml_result)
 
-def format_comparison_response(result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-    """Format a comparison result"""
-    return response_formatter.format_comparison_response(result, command)
-
-def format_analysis_response(result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-    """Format an analysis result"""
-    return response_formatter.format_analysis_response(result, command)
-
-def format_plot_response(result: Dict[str, Any], command: Any) -> Dict[str, Any]:
-    """Format a plot result"""
-    return response_formatter.format_plot_response(result, command)
-
-def create_plot_request(command: Any, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Create a plot request"""
-    return response_formatter.create_plot_request(command, result)
+def format_table_data(ml_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Format ML result into table data"""
+    return response_formatter.format_table_data(ml_result)

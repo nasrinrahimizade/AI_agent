@@ -13,6 +13,7 @@ class PlottingEngine:
     """
     Advanced Plotting Engine for Statistical AI Agent
     Handles natural language requests and generates appropriate visualizations
+    Optimized for mock data with 4-class structure
     """
     
     def __init__(self, feature_matrix_path: str):
@@ -21,28 +22,97 @@ class PlottingEngine:
         self.prepare_data()
         
     def prepare_data(self):
-        """Prepare data for plotting - separate OK vs KO classes"""
-        # Create binary classification: OK vs all KO types
+        """Prepare data for plotting - handle 4-class structure properly"""
+        # Keep original 4-class structure: OK, KO, KO_HIGH_2mm, KO_LOW_2mm
+        self.classes = sorted(self.df['label'].unique())
+        print(f"✅ Data prepared: {len(self.classes)} classes found: {self.classes}")
+        
+        # Separate feature columns (exclude label, sample)
+        self.feature_columns = [col for col in self.df.columns 
+                               if col not in ['label', 'sample']]
+        
+        # Create class-specific dataframes
+        self.class_data = {}
+        for class_name in self.classes:
+            self.class_data[class_name] = self.df[self.df['label'] == class_name]
+            print(f"📊 {class_name}: {len(self.class_data[class_name])} samples")
+        
+        # Create binary classification for backward compatibility
         self.df['binary_class'] = self.df['label'].apply(
             lambda x: 'OK' if x == 'OK' else 'KO'
         )
         
-        # Separate feature columns (exclude label, sample, binary_class)
-        self.feature_columns = [col for col in self.df.columns 
-                               if col not in ['label', 'sample', 'binary_class']]
-        
-        # Get OK and KO data
+        # Get OK and KO data (aggregated)
         self.ok_data = self.df[self.df['binary_class'] == 'OK']
         self.ko_data = self.df[self.df['binary_class'] == 'KO']
         
-        print(f"✅ Data prepared: {len(self.ok_data)} OK samples, {len(self.ko_data)} KO samples")
         print(f"📊 Features available: {len(self.feature_columns)} features")
+        
+        # Define color scheme for 4 classes
+        self.class_colors = {
+            'OK': '#2E8B57',           # Sea Green
+            'KO': '#CD5C5C',           # Indian Red
+            'KO_HIGH_2mm': '#FF8C00',  # Dark Orange
+            'KO_LOW_2mm': '#8B008B'    # Dark Magenta
+        }
+        
+        # Define feature categories for better organization
+        self.feature_categories = {
+            'Environmental': ['temperature_mean', 'humidity_mean', 'pressure_mean'],
+            'Motion': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
+            'Rotation': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
+            'Audio': ['microphone_mean']
+        }
     
     def get_sensor_features(self, sensor_name: str) -> List[str]:
-        """Get all features for a specific sensor"""
+        """Get all features for a specific sensor with better matching"""
+        sensor_name_lower = sensor_name.lower()
+        
+        # Enhanced sensor matching
+        sensor_mapping = {
+            'temperature': ['temperature_mean'],
+            'temp': ['temperature_mean'],
+            'humidity': ['humidity_mean'],
+            'hum': ['humidity_mean'],
+            'pressure': ['pressure_mean'],
+            'press': ['pressure_mean'],
+            'accelerometer': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
+            'acceleration': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
+            'acc': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
+            'gyroscope': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
+            'gyro': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
+            'microphone': ['microphone_mean'],
+            'mic': ['microphone_mean'],
+            'motion': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
+            'rotation': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean']
+        }
+        
+        # Direct mapping
+        if sensor_name_lower in sensor_mapping:
+            return sensor_mapping[sensor_name_lower]
+        
+        # Fuzzy matching
+        for key, features in sensor_mapping.items():
+            if sensor_name_lower in key or key in sensor_name_lower:
+                return features
+        
+        # Fallback: search in feature names
         sensor_features = [col for col in self.feature_columns 
-                          if sensor_name.lower() in col.lower()]
+                          if sensor_name_lower in col.lower()]
         return sensor_features
+    
+    def clean_feature_name(self, feature_name: str) -> str:
+        """Convert feature names to readable labels"""
+        # Remove common suffixes
+        clean_name = feature_name.replace('_mean', '').replace('_', ' ')
+        
+        # Capitalize and format
+        clean_name = clean_name.title()
+        
+        # Special formatting for specific features
+        clean_name = clean_name.replace('X', 'X-axis').replace('Y', 'Y-axis').replace('Z', 'Z-axis')
+        
+        return clean_name
     
     def parse_plot_request(self, request: str) -> Dict:
         """
@@ -57,7 +127,8 @@ class PlottingEngine:
             'features': [],
             'sensor': None,
             'statistic': None,
-            'comparison': True  # OK vs KO comparison by default
+            'comparison': True,  # Multi-class comparison by default
+            'use_all_classes': True  # Use 4 classes instead of binary
         }
         
         # Detect plot types
@@ -73,11 +144,13 @@ class PlottingEngine:
             result['plot_type'] = 'frequency'
         elif any(word in request for word in ['scatter', 'scatter plot']):
             result['plot_type'] = 'scatter'
+        elif any(word in request for word in ['violin', 'violin plot']):
+            result['plot_type'] = 'violin'
         
         # Detect sensors
         sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'temperature', 
                   'pressure', 'humidity', 'microphone', 'acc', 'gyro', 'mag', 
-                  'temp', 'press', 'hum', 'mic']
+                  'temp', 'press', 'hum', 'mic', 'motion', 'rotation']
         
         for sensor in sensors:
             if sensor in request:
@@ -106,7 +179,7 @@ class PlottingEngine:
         return result
     
     def plot_feature_comparison(self, features: List[str], plot_type: str = 'boxplot') -> plt.Figure:
-        """Generate comparison plots between OK and KO for specific features"""
+        """Generate comparison plots between all classes for specific features"""
         
         if not features:
             # If no specific features, use top discriminative features
@@ -125,33 +198,79 @@ class PlottingEngine:
             ax = axes[i]
             
             if plot_type == 'boxplot':
-                # Boxplot comparison
-                data_to_plot = [
-                    self.ok_data[feature].dropna(),
-                    self.ko_data[feature].dropna()
-                ]
-                box_plot = ax.boxplot(data_to_plot, labels=['OK', 'KO'], patch_artist=True)
-                box_plot['boxes'][0].set_facecolor('lightblue')
-                box_plot['boxes'][1].set_facecolor('lightcoral')
+                # Boxplot comparison for all classes
+                data_to_plot = []
+                labels = []
+                
+                for class_name in self.classes:
+                    class_values = self.class_data[class_name][feature].dropna()
+                    if len(class_values) > 0:
+                        data_to_plot.append(class_values)
+                        labels.append(class_name)
+                
+                if data_to_plot:
+                    box_plot = ax.boxplot(data_to_plot, labels=labels, patch_artist=True)
+                    
+                    # Color the boxes
+                    for j, box in enumerate(box_plot['boxes']):
+                        class_name = labels[j]
+                        box.set_facecolor(self.class_colors.get(class_name, 'lightgray'))
+                        box.set_alpha(0.7)
+                    
+                    # Color the whiskers and medians
+                    for element in ['whiskers', 'fliers', 'means', 'medians']:
+                        if element in box_plot:
+                            plt.setp(box_plot[element], color='black')
                 
             elif plot_type == 'histogram':
-                # Histogram overlay
-                ax.hist(self.ok_data[feature].dropna(), alpha=0.7, label='OK', 
-                       bins=20, color='lightblue', density=True)
-                ax.hist(self.ko_data[feature].dropna(), alpha=0.7, label='KO', 
-                       bins=20, color='lightcoral', density=True)
+                # Histogram overlay for all classes
+                for class_name in self.classes:
+                    class_values = self.class_data[class_name][feature].dropna()
+                    if len(class_values) > 0:
+                        ax.hist(class_values, alpha=0.6, label=class_name, 
+                               bins=15, color=self.class_colors.get(class_name, 'gray'), 
+                               density=True, edgecolor='black', linewidth=0.5)
                 ax.legend()
             
+            elif plot_type == 'violin':
+                # Violin plot for all classes
+                data_to_plot = []
+                labels = []
+                
+                for class_name in self.classes:
+                    class_values = self.class_data[class_name][feature].dropna()
+                    if len(class_values) > 0:
+                        data_to_plot.append(class_values)
+                        labels.append(class_name)
+                
+                if data_to_plot:
+                    violin_parts = ax.violinplot(data_to_plot, positions=range(len(labels)))
+                    
+                    # Color the violins
+                    for j, pc in enumerate(violin_parts['bodies']):
+                        class_name = labels[j]
+                        pc.set_facecolor(self.class_colors.get(class_name, 'lightgray'))
+                        pc.set_alpha(0.7)
+                    
+                    ax.set_xticks(range(len(labels)))
+                    ax.set_xticklabels(labels, rotation=45)
+            
             # Clean up feature name for title
-            clean_name = feature.replace('_', ' ').title()
-            ax.set_title(f'{clean_name}', fontsize=10)
+            clean_name = self.clean_feature_name(feature)
+            ax.set_title(f'{clean_name}', fontsize=11, fontweight='bold')
+            ax.set_xlabel('Class', fontsize=10)
+            ax.set_ylabel('Value', fontsize=10)
             ax.grid(True, alpha=0.3)
+            
+            # Rotate x-axis labels for better readability
+            if plot_type in ['boxplot', 'violin']:
+                ax.tick_params(axis='x', rotation=45)
         
         # Hide empty subplots
         for i in range(len(features), 6):
             axes[i].set_visible(False)
         
-        plt.suptitle(f'{plot_type.title()} Comparison: OK vs KO Classes', fontsize=16)
+        plt.suptitle(f'{plot_type.title()} Comparison: Multi-Class Analysis', fontsize=16, fontweight='bold')
         plt.tight_layout()
         return fig
     
@@ -169,20 +288,27 @@ class PlottingEngine:
         corr_data = self.df[features].corr()
         
         # Create plot
-        fig, ax = plt.subplots(figsize=(12, 10))
+        fig, ax = plt.subplots(figsize=(14, 12))
         
-        # Generate heatmap
-        sns.heatmap(corr_data, annot=True, cmap='coolwarm', center=0,
-                   square=True, ax=ax, fmt='.2f', cbar_kws={'shrink': 0.8})
+        # Generate heatmap with better styling
+        mask = np.triu(np.ones_like(corr_data, dtype=bool))  # Upper triangle mask
+        sns.heatmap(corr_data, mask=mask, annot=True, cmap='RdBu_r', center=0,
+                   square=True, ax=ax, fmt='.2f', cbar_kws={'shrink': 0.8},
+                   linewidths=0.5, annot_kws={'size': 8})
         
-        ax.set_title('Feature Correlation Matrix', fontsize=16)
+        # Clean up feature names for better readability
+        clean_labels = [self.clean_feature_name(f) for f in features]
+        ax.set_xticklabels(clean_labels, rotation=45, ha='right')
+        ax.set_yticklabels(clean_labels, rotation=0)
+        
+        ax.set_title('Feature Correlation Matrix', fontsize=16, fontweight='bold', pad=20)
         plt.tight_layout()
         return fig
     
     def plot_time_series(self, features: Optional[List[str]] = None) -> plt.Figure:
         """
-        Plot time series data (simulated since we don't have actual time stamps)
-        Uses sample order as time proxy
+        Plot time series data using sample order as time proxy
+        Enhanced for multi-class visualization
         """
         
         if features is None or len(features) == 0:
@@ -197,30 +323,35 @@ class PlottingEngine:
         for i, feature in enumerate(features):
             ax = axes[i]
             
-            # Plot OK samples (assuming samples are ordered somehow)
-            ok_samples = self.ok_data.sort_values('sample')
-            ko_samples = self.ko_data.sort_values('sample')
+            # Plot each class separately
+            for class_name in self.classes:
+                class_data = self.class_data[class_name].sort_values('sample')
+                if len(class_data) > 0:
+                    # Extract sample numbers (remove 'Sample_' prefix)
+                    sample_nums = [int(s.replace('Sample_', '')) for s in class_data['sample']]
+                    
+                    ax.plot(sample_nums, class_data[feature], 
+                           'o-', color=self.class_colors.get(class_name, 'gray'), 
+                           alpha=0.8, label=class_name, linewidth=2, markersize=6)
             
-            ax.plot(ok_samples['sample'], ok_samples[feature], 
-                   'o-', color='blue', alpha=0.7, label='OK', linewidth=2)
-            ax.plot(ko_samples['sample'], ko_samples[feature], 
-                   's-', color='red', alpha=0.7, label='KO', linewidth=2)
-            
-            clean_name = feature.replace('_', ' ').title()
-            ax.set_title(f'Time Series: {clean_name}')
-            ax.set_xlabel('Sample Number')
-            ax.set_ylabel('Value')
+            clean_name = self.clean_feature_name(feature)
+            ax.set_title(f'Time Series: {clean_name}', fontweight='bold')
+            ax.set_xlabel('Sample Number', fontsize=10)
+            ax.set_ylabel('Value', fontsize=10)
             ax.legend()
             ax.grid(True, alpha=0.3)
+            
+            # Set x-axis to show sample numbers clearly
+            ax.set_xticks(range(1, 21, 2))  # Show every other sample number
         
-        plt.suptitle('Time Series Analysis', fontsize=16)
+        plt.suptitle('Time Series Analysis by Class', fontsize=16, fontweight='bold')
         plt.tight_layout()
         return fig
     
     def plot_frequency_domain(self, features: Optional[List[str]] = None) -> plt.Figure:
         """
         Generate frequency domain plots (FFT analysis)
-        Note: This is conceptual since we have statistical features, not raw time series
+        Enhanced for multi-class comparison
         """
         
         if features is None or len(features) == 0:
@@ -228,49 +359,51 @@ class PlottingEngine:
         
         features = features[:2]  # Limit for clarity
         
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
         if len(features) == 1:
             axes = [axes]
         
         for i, feature in enumerate(features):
             ax = axes[i] if len(features) > 1 else axes
             
-            # Since we don't have raw time series, we'll create a conceptual frequency plot
-            # using the statistical distribution of values
-            ok_values = self.ok_data[feature].dropna().values
-            ko_values = self.ko_data[feature].dropna().values
-            
-            # Create synthetic frequency response based on value distribution
+            # Create synthetic frequency response based on value distribution for each class
             freqs = np.linspace(0, 1, 50)
             
-            # OK class spectrum (based on std and mean)
-            ok_spectrum = np.exp(-((freqs - 0.3)**2) / (2 * (np.std(ok_values)/10)**2))
+            for class_name in self.classes:
+                class_values = self.class_data[class_name][feature].dropna().values
+                if len(class_values) > 0:
+                    # Create spectrum based on class characteristics
+                    mean_val = np.mean(class_values)
+                    std_val = np.std(class_values)
+                    
+                    # Normalize to 0-1 range for visualization
+                    normalized_mean = (mean_val - np.min(class_values)) / (np.max(class_values) - np.min(class_values))
+                    
+                    # Create spectrum with class-specific characteristics
+                    spectrum = np.exp(-((freqs - normalized_mean)**2) / (2 * (std_val/10)**2))
+                    
+                    ax.plot(freqs, spectrum, '-', linewidth=2.5, label=class_name, 
+                           color=self.class_colors.get(class_name, 'gray'))
             
-            # KO class spectrum (based on std and mean) 
-            ko_spectrum = np.exp(-((freqs - 0.7)**2) / (2 * (np.std(ko_values)/10)**2))
-            
-            ax.plot(freqs, ok_spectrum, 'b-', linewidth=2, label='OK Class')
-            ax.plot(freqs, ko_spectrum, 'r-', linewidth=2, label='KO Class')
-            
-            clean_name = feature.replace('_', ' ').title()
-            ax.set_title(f'Frequency Domain: {clean_name}')
-            ax.set_xlabel('Normalized Frequency')
-            ax.set_ylabel('Magnitude')
+            clean_name = self.clean_feature_name(feature)
+            ax.set_title(f'Frequency Domain: {clean_name}', fontweight='bold')
+            ax.set_xlabel('Normalized Frequency', fontsize=10)
+            ax.set_ylabel('Magnitude', fontsize=10)
             ax.legend()
             ax.grid(True, alpha=0.3)
         
-        plt.suptitle('Frequency Domain Analysis', fontsize=16)
+        plt.suptitle('Frequency Domain Analysis by Class', fontsize=16, fontweight='bold')
         plt.tight_layout()
         return fig
     
     def plot_scatter(self, features: Optional[List[str]] = None) -> plt.Figure:
-        """Generate scatter plots between feature pairs"""
+        """Generate scatter plots between feature pairs with multi-class support"""
         
         if features is None or len(features) < 2:
             features = self.get_top_discriminative_features(n=4)
         
         # Create scatter plot matrix for top features
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        fig, axes = plt.subplots(2, 2, figsize=(14, 12))
         axes = axes.flatten()
         
         for i in range(min(4, len(features)-1)):
@@ -278,43 +411,53 @@ class PlottingEngine:
             feature1 = features[i]
             feature2 = features[i+1] if i+1 < len(features) else features[0]
             
-            # Scatter plot OK vs KO
-            ax.scatter(self.ok_data[feature1], self.ok_data[feature2], 
-                      c='blue', alpha=0.6, label='OK', s=50)
-            ax.scatter(self.ko_data[feature1], self.ko_data[feature2], 
-                      c='red', alpha=0.6, label='KO', s=50)
+            # Scatter plot for each class
+            for class_name in self.classes:
+                class_data = self.class_data[class_name]
+                if len(class_data) > 0:
+                    ax.scatter(class_data[feature1], class_data[feature2], 
+                              c=self.class_colors.get(class_name, 'gray'), 
+                              alpha=0.7, label=class_name, s=60, edgecolors='black', linewidth=0.5)
             
-            ax.set_xlabel(feature1.replace('_', ' ').title())
-            ax.set_ylabel(feature2.replace('_', ' ').title())
+            ax.set_xlabel(self.clean_feature_name(feature1), fontsize=10)
+            ax.set_ylabel(self.clean_feature_name(feature2), fontsize=10)
             ax.legend()
             ax.grid(True, alpha=0.3)
         
-        plt.suptitle('Feature Scatter Plot Analysis', fontsize=16)
+        plt.suptitle('Feature Scatter Plot Analysis by Class', fontsize=16, fontweight='bold')
         plt.tight_layout()
         return fig
     
     def get_top_discriminative_features(self, n: int = 5) -> List[str]:
-        """Get top N most discriminative features using t-test"""
+        """Get top N most discriminative features using ANOVA for multi-class"""
         
         feature_scores = []
         
         for feature in self.feature_columns:
-            ok_values = self.ok_data[feature].dropna()
-            ko_values = self.ko_data[feature].dropna()
+            # Collect data for all classes
+            class_data = []
+            valid_classes = []
             
-            if len(ok_values) > 1 and len(ko_values) > 1:
+            for class_name in self.classes:
+                values = self.class_data[class_name][feature].dropna()
+                if len(values) > 1:
+                    class_data.append(values.values)
+                    valid_classes.append(class_name)
+            
+            if len(class_data) >= 2:  # Need at least 2 classes
                 try:
-                    # Perform t-test
-                    t_stat, p_value = ttest_ind(ok_values, ko_values)
+                    # Perform one-way ANOVA
+                    from scipy.stats import f_oneway
+                    f_stat, p_value = f_oneway(*class_data)
                     
-                    # Calculate effect size (Cohen's d)
-                    pooled_std = np.sqrt(((len(ok_values)-1)*np.var(ok_values) + 
-                                        (len(ko_values)-1)*np.var(ko_values)) / 
-                                       (len(ok_values) + len(ko_values) - 2))
+                    # Calculate effect size (eta-squared)
+                    grand_mean = np.mean(np.concatenate(class_data))
+                    ss_between = sum(len(data) * (np.mean(data) - grand_mean)**2 for data in class_data)
+                    ss_total = sum((val - grand_mean)**2 for data in class_data for val in data)
                     
-                    if pooled_std > 0:
-                        cohens_d = abs(np.mean(ok_values) - np.mean(ko_values)) / pooled_std
-                        score = cohens_d * (1 - p_value)  # Combined score
+                    if ss_total > 0:
+                        eta_squared = ss_between / ss_total
+                        score = eta_squared * (1 - p_value)  # Combined score
                         feature_scores.append((feature, score))
                 except:
                     continue
@@ -326,7 +469,7 @@ class PlottingEngine:
     def handle_plot_request(self, request: str) -> plt.Figure:
         """
         Main function to handle natural language plot requests
-        This is the interface your teammate will use
+        Enhanced for better mock data visualization
         """
         
         print(f"🎯 Processing plot request: '{request}'")
@@ -348,6 +491,9 @@ class PlottingEngine:
                 
             elif parsed['plot_type'] == 'scatter':
                 fig = self.plot_scatter(parsed['features'])
+                
+            elif parsed['plot_type'] == 'violin':
+                fig = self.plot_feature_comparison(parsed['features'], 'violin')
                 
             else:  # Default to comparison plots
                 fig = self.plot_feature_comparison(
@@ -381,20 +527,85 @@ class PlottingEngine:
         return {
             'total_features': len(self.feature_columns),
             'available_sensors': self.get_available_sensors(),
-            'sample_counts': {
-                'OK': len(self.ok_data),
-                'KO': len(self.ko_data)
-            },
-            'top_discriminative': self.get_top_discriminative_features(10)
+            'sample_counts': {class_name: len(self.class_data[class_name]) for class_name in self.classes},
+            'top_discriminative': self.get_top_discriminative_features(10),
+            'feature_categories': self.feature_categories
         }
+    
+    def create_class_distribution_plot(self) -> plt.Figure:
+        """Create a summary plot showing class distribution and characteristics"""
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # 1. Class sample counts
+        ax1 = axes[0, 0]
+        class_counts = [len(self.class_data[class_name]) for class_name in self.classes]
+        bars = ax1.bar(self.classes, class_counts, color=[self.class_colors.get(c, 'gray') for c in self.classes])
+        ax1.set_title('Sample Count by Class', fontweight='bold')
+        ax1.set_ylabel('Number of Samples')
+        ax1.tick_params(axis='x', rotation=45)
+        
+        # Add value labels on bars
+        for bar, count in zip(bars, class_counts):
+            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                    str(count), ha='center', va='bottom')
+        
+        # 2. Feature value ranges
+        ax2 = axes[0, 1]
+        feature_ranges = []
+        feature_names = []
+        
+        for feature in self.feature_columns[:5]:  # Top 5 features
+            all_values = self.df[feature].dropna()
+            feature_ranges.append(np.ptp(all_values))  # Peak-to-peak
+            feature_names.append(self.clean_feature_name(feature))
+        
+        bars = ax2.barh(feature_names, feature_ranges, color='skyblue', alpha=0.7)
+        ax2.set_title('Feature Value Ranges', fontweight='bold')
+        ax2.set_xlabel('Range (Max - Min)')
+        
+        # 3. Class separation (using top discriminative feature)
+        ax3 = axes[1, 0]
+        top_feature = self.get_top_discriminative_features(1)[0]
+        
+        for class_name in self.classes:
+            values = self.class_data[class_name][top_feature].dropna()
+            ax3.hist(values, alpha=0.6, label=class_name, bins=10, 
+                    color=self.class_colors.get(class_name, 'gray'), density=True)
+        
+        ax3.set_title(f'Distribution of Top Feature: {self.clean_feature_name(top_feature)}', fontweight='bold')
+        ax3.set_xlabel('Value')
+        ax3.set_ylabel('Density')
+        ax3.legend()
+        
+        # 4. Correlation heatmap (top 6 features)
+        ax4 = axes[1, 1]
+        top_features = self.get_top_discriminative_features(6)
+        corr_data = self.df[top_features].corr()
+        
+        im = ax4.imshow(corr_data, cmap='RdBu_r', aspect='auto')
+        ax4.set_title('Top Features Correlation', fontweight='bold')
+        
+        # Set tick labels
+        clean_labels = [self.clean_feature_name(f) for f in top_features]
+        ax4.set_xticks(range(len(clean_labels)))
+        ax4.set_yticks(range(len(clean_labels)))
+        ax4.set_xticklabels(clean_labels, rotation=45, ha='right')
+        ax4.set_yticklabels(clean_labels)
+        
+        # Add colorbar
+        plt.colorbar(im, ax=ax4, shrink=0.8)
+        
+        plt.suptitle('Dataset Overview and Analysis', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        return fig
 
 
 # Example usage and testing functions
 def test_plotting_engine():
     """Test the plotting engine with example requests"""
     
-    # Initialize (you'll need to update this path)
-    engine = PlottingEngine('feature_matrix.csv')
+    # Initialize with mock data
+    engine = PlottingEngine('core/mock_data.csv')
     
     # Test different types of requests
     test_requests = [
@@ -404,7 +615,8 @@ def test_plotting_engine():
         "Show time series for top features", 
         "Create frequency domain plot",
         "Plot scatter analysis",
-        "Compare gyroscope mean values between OK and KO"
+        "Compare gyroscope mean values between classes",
+        "Create violin plot for pressure sensor"
     ]
     
     print("🧪 Testing Plotting Engine with various requests:")
@@ -426,6 +638,12 @@ def test_plotting_engine():
     print(f"- Available sensors: {summary['available_sensors']}")
     print(f"- Sample counts: {summary['sample_counts']}")
     print(f"- Top discriminative features: {summary['top_discriminative'][:5]}")
+    
+    # Create overview plot
+    print("\n🎨 Creating dataset overview plot...")
+    overview_fig = engine.create_class_distribution_plot()
+    plt.show()
+    plt.close(overview_fig)
 
 
 if __name__ == "__main__":

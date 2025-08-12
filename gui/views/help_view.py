@@ -47,11 +47,19 @@ class HelpView(QWidget):
                 <h2>📊 Statistical Analysis Requests</h2>
                 <h3>Basic Statistics</h3>
                 <ul>
-                    <li><b>"What is the mean temperature?"</b> - Get average temperature across all samples</li>
-                    <li><b>"Show me the standard deviation of humidity"</b> - Get variability measure</li>
-                    <li><b>"What is the median pressure?"</b> - Get middle value of pressure data</li>
-                    <li><b>"Count the total samples"</b> - Get total number of data points</li>
-                    <li><b>"What are the min and max values for acceleration?"</b> - Get range of values</li>
+                    <li><b>"What is the mean temperature for OK samples from HTS221_TEMP?"</b> - Get average temperature for specific class and sensor</li>
+                    <li><b>"Calculate the median humidity for KO_HIGH_2mm samples"</b> - Get middle value for specific class</li>
+                    <li><b>"Show the variance of acceleration in IIS3DWB_ACC for OK and KO"</b> - Compare variability between classes</li>
+                    <li><b>"Give me the standard deviation of pressure from LPS22HH_PRESS for each class"</b> - Get spread across all classes</li>
+                    <li><b>"List the top 3 statistical indices that best separate OK and KO samples"</b> - Find most discriminative features</li>
+                </ul>
+
+                <h3>Sensor-Specific Requests</h3>
+                <ul>
+                    <li><b>HTS221 Temperature Sensor:</b> "What is the mean HTS221_TEMP for OK samples?"</li>
+                    <li><b>HTS221 Humidity Sensor:</b> "Show me humidity stats from HTS221_HUM for each class"</li>
+                    <li><b>LPS22HH Pressure Sensor:</b> "Calculate pressure variance from LPS22HH_PRESS for KO samples"</li>
+                    <li><b>IIS3DWB Accelerometer:</b> "Compare acceleration data from IIS3DWB_ACC between OK and KO"</li>
                 </ul>
 
                 <h3>Grouped Analysis</h3>
@@ -79,18 +87,20 @@ class HelpView(QWidget):
                 <h2>📈 Visualization Requests</h2>
                 <h3>Statistical Plots</h3>
                 <ul>
-                    <li><b>"Create a boxplot of temperature by class"</b> - Class comparison visualization</li>
-                    <li><b>"Show me a histogram of humidity data"</b> - Distribution analysis</li>
+                    <li><b>"Create a boxplot of temperature by class"</b> - Multi-class comparison visualization</li>
+                    <li><b>"Show me a histogram of humidity data"</b> - Distribution analysis across all classes</li>
                     <li><b>"Generate a scatter plot of temperature vs humidity"</b> - Feature relationships</li>
                     <li><b>"Display correlation matrix between sensors"</b> - Feature associations</li>
+                    <li><b>"Create a violin plot for pressure sensor"</b> - Detailed distribution comparison</li>
                 </ul>
 
                 <h3>Advanced Visualizations</h3>
                 <ul>
-                    <li><b>"Show me time series analysis of pressure data"</b> - Temporal patterns</li>
-                    <li><b>"Generate frequency spectrum of vibration data"</b> - Signal analysis</li>
+                    <li><b>"Show me time series analysis of pressure data"</b> - Temporal patterns by class</li>
+                    <li><b>"Generate frequency spectrum of vibration data"</b> - Signal analysis comparison</li>
                     <li><b>"Create a heatmap of feature correlations"</b> - Correlation visualization</li>
                     <li><b>"Plot feature importance ranking"</b> - Feature selection visualization</li>
+                    <li><b>"Show dataset overview"</b> - Comprehensive data summary</li>
                 </ul>
 
                 <h2>🔬 Sensor-Specific Analysis</h2>
@@ -182,6 +192,32 @@ class HelpView(QWidget):
                         <li><b>Use Natural Language:</b> Talk to the AI like you would to a colleague</li>
                     </ul>
                 </div>
+
+                <h2>🎯 Smart Response System</h2>
+                <h3>Automatic Response Type Detection</h3>
+                <p>The system automatically detects whether you want a text response or visual response based on your request:</p>
+                
+                <h4>📝 Text Responses (No Plots)</h4>
+                <ul>
+                    <li><b>Lists & Analysis:</b> "List the top 3 features", "Show me the analysis", "Tell me about..."</li>
+                    <li><b>Information Requests:</b> "What is the mean", "Describe the differences", "Explain the patterns"</li>
+                    <li><b>Comparative Analysis:</b> "Compare OK vs KO", "Analyze the relationships", "Find the best features"</li>
+                </ul>
+                
+                <h4>📊 Visual Responses (With Plots)</h4>
+                <ul>
+                    <li><b>Plot Requests:</b> "Create a boxplot", "Show me a histogram", "Generate a scatter plot"</li>
+                    <li><b>Visual Commands:</b> "Plot the data", "Display the chart", "Visualize the results"</li>
+                    <li><b>Chart Generation:</b> "Make a graph", "Draw a plot", "Show the visualization"</li>
+                </ul>
+                
+                <h4>🔄 Auto Mode (Smart Defaults)</h4>
+                <ul>
+                    <li><b>Statistics:</b> Text with optional plot suggestions</li>
+                    <li><b>Top Features:</b> Always text (informational)</li>
+                    <li><b>Comparisons:</b> Text with comparison plot suggestions</li>
+                    <li><b>Analysis:</b> Text with relevant visualization options</li>
+                </ul>
             </div>
             """
         )
