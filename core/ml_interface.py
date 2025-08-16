@@ -1541,3 +1541,44 @@ if __name__ == "__main__":
     print(f"- Available sensors: {len(ml_interface.available_sensors)}")
     print(f"- Available features: {len(ml_interface.get_available_features())}")
     print(f"- Classes in dataset: {list(ml_interface.mock_data['label'].unique()) if ml_interface.mock_data is not None else 'N/A'}")
+
+
+
+    # Test feature - using temperature as it's commonly available
+    test_feature = 'HTS221_TEMP_TEMP_mean'
+    
+    print(f"\n1. TESTING FEATURE: {test_feature}")
+    print("-" * 50)
+    
+    # Run the function
+    result = ml_interface.get_feature_analysis(test_feature)
+    
+    # Display results
+    if result['status'] == 'success':
+        print("✓ Function executed successfully")
+        print(f"Feature: {result['feature']}")
+        print(f"Mapped column: {result['mapped_column']}")
+        print(f"Total samples: {result['total_samples']}")
+        
+        print("\nClass Analysis Results:")
+        for class_name, stats in result['analysis'].items():
+            print(f"\n{class_name} Class:")
+            if stats['count'] > 0:
+                print(f"  - Count: {stats['count']}")
+                print(f"  - Mean: {stats['mean']:.6f}")
+                print(f"  - Std: {stats['std']:.6f}")
+                print(f"  - Min: {stats['min']:.6f}")
+                print(f"  - Max: {stats['max']:.6f}")
+                print(f"  - Median: {stats['median']:.6f}")
+                print(f"  - Variance: {stats['variance']:.6f}")
+            else:
+                print(f"  - No data for this class")
+        
+        if result.get('discriminative_score'):
+            print(f"\nDiscriminative Score: {result['discriminative_score']:.6f}")
+            print(f"Relative Difference: {result['relative_difference']:.6f}")
+        
+    else:
+        print("✗ Function failed:")
+        print(f"Error: {result['message']}")
+    
