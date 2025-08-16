@@ -10,6 +10,7 @@ __pycache__\
 
 # Distribution / packaging
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -24,6 +25,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+Llama-3.2-1B/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -64,6 +66,9 @@ Pipfile.lock
 
 # Pyre type checker
 .pyre/
+
+# VS Code
+.vscode/
 
 # PyCharm
 .idea/
@@ -149,4 +154,4 @@ Llama-3.2-1B/
 env/
 
 # IDE and editor files
-.vscode/ 
+.vscode/

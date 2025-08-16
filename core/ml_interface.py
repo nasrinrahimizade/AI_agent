@@ -23,7 +23,7 @@ except ImportError:
     logging.warning("ML layer not available, using stub functions")
 
 class MLInterface:
-    def __init__(self, feature_matrix_path: str = "core/mock_data.csv"):
+    def __init__(self, feature_matrix_path: str = "ML/feature_matrix.csv"):
         self.feature_matrix_path = feature_matrix_path
         self.ml_agent = None
         self.initialized = False
@@ -31,9 +31,9 @@ class MLInterface:
         
         if ML_AVAILABLE:
             try:
-                self.ml_agent = StatisticalAIAgent(feature_matrix_path)
+                self.ml_agent = StatisticalAIAgent(feature_matrix_path) ##ok
                 self.initialized = True
-                logging.info("ML Interface initialized with StatisticalAIAgent")
+                logging.info("ML Interface initialized with StatisticalAIAgent") ##ok
             except Exception as e:
                 logging.error(f"Failed to initialize ML agent: {e}")
                 self.initialized = False
@@ -46,15 +46,32 @@ class MLInterface:
             logging.error(f"Failed to load mock data: {e}")
             self.mock_data = None
         
-        self.available_sensors = ['temperature', 'humidity', 'acceleration_x', 'acceleration_y', 
-                                'acceleration_z', 'pressure', 'gyroscope_x', 'gyroscope_y', 
-                                'gyroscope_z', 'microphone']
+        # Extract unique sensor types from actual dataset columns
+        self.available_sensors = []
+        if self.mock_data is not None:
+            # Get all columns except label and sample
+            feature_columns = [col for col in self.mock_data.columns if col not in ['label', 'sample']]
+            # Extract unique sensor prefixes
+            sensor_prefixes = set()
+            for col in feature_columns:
+                if '_' in col:
+                    # Extract sensor name (e.g., 'HTS221_TEMP' from 'HTS221_TEMP_TEMP_mean')
+                    parts = col.split('_')
+                    if len(parts) >= 2:
+                        sensor_prefixes.add(f"{parts[0]}_{parts[1]}")
+            self.available_sensors = list(sensor_prefixes)
+        else:
+            # Fallback list based on your dataset
+            self.available_sensors = ['HTS221_TEMP', 'HTS221_HUM', 'LPS22HH_PRESS', 'IIS3DWB_ACC', 
+                                    'ISM330DHCX_ACC', 'ISM330DHCX_GYRO', 'IMP23ABSU_MIC', 'IMP34DT05_MIC']
+        
+        
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm']
         self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
                                    'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
 
     def get_statistic(self, stat: str, column: str, filters: Optional[Dict] = None,
-                       group_by: Optional[str] = None) -> Dict[str, Any]:
+                   group_by: Optional[str] = None) -> Dict[str, Any]:
         """Get statistical measure for a specific column with optional filtering and grouping"""
         try:
             # Map sensor names to actual column names
@@ -73,7 +90,7 @@ class MLInterface:
             if filters and 'class' in filters:
                 data = data[data['label'].isin(filters['class'])]
             
-            # Validate data quality before analysis
+            # Validate data quality before analysis and get cleaned data
             validation = self._validate_data_quality(data, f"statistic calculation for {stat}")
             if not validation['is_valid']:
                 return {
@@ -84,17 +101,28 @@ class MLInterface:
                     'validation_details': validation
                 }
             
+            # Use cleaned data from validation
+            cleaned_data = validation['cleaned_data']
+            
             # Check if we have enough data for the requested statistic
-            if len(data) < 2:
+            if len(cleaned_data) < 2:
                 return {
                     'status': 'error',
-                    'message': f'Insufficient data for {stat} calculation. Need at least 2 samples, got {len(data)}',
+                    'message': f'Insufficient data for {stat} calculation. Need at least 2 samples, got {len(cleaned_data)}',
                     'data_source': 'Mock data',
                     'data_quality': 'insufficient_samples'
                 }
             
-            # Get the target column data
-            column_data = data[target_column]
+            # Get the target column data and remove NaN values for calculation
+            column_data = cleaned_data[target_column].dropna()
+            
+            if len(column_data) == 0:
+                return {
+                    'status': 'error',
+                    'message': f'No valid data remaining in column {target_column} after cleaning',
+                    'data_source': 'Mock data',
+                    'data_quality': 'no_valid_data'
+                }
             
             # Calculate the requested statistic
             if stat.lower() in ['mean', 'average', 'avg']:
@@ -122,22 +150,25 @@ class MLInterface:
             # Handle grouping if requested
             if group_by == 'class':
                 grouped_result = {}
-                for class_name in data['label'].unique():
-                    class_data = data[data['label'] == class_name][target_column]
-                    if stat.lower() in ['mean', 'average', 'avg']:
-                        grouped_result[class_name] = class_data.mean()
-                    elif stat.lower() in ['median', 'med']:
-                        grouped_result[class_name] = class_data.median()
-                    elif stat.lower() in ['std', 'standard deviation', 'standard_deviation']:
-                        grouped_result[class_name] = class_data.std()
-                    elif stat.lower() in ['variance', 'var']:
-                        grouped_result[class_name] = class_data.var()
-                    elif stat.lower() in ['min', 'minimum']:
-                        grouped_result[class_name] = class_data.min()
-                    elif stat.lower() in ['max', 'maximum']:
-                        grouped_result[class_name] = class_data.max()
-                    elif stat.lower() in ['count', 'n']:
-                        grouped_result[class_name] = len(class_data)
+                for class_name in cleaned_data['label'].unique():
+                    class_data = cleaned_data[cleaned_data['label'] == class_name][target_column].dropna()
+                    if len(class_data) > 0:  # Only calculate if we have valid data
+                        if stat.lower() in ['mean', 'average', 'avg']:
+                            grouped_result[class_name] = class_data.mean()
+                        elif stat.lower() in ['median', 'med']:
+                            grouped_result[class_name] = class_data.median()
+                        elif stat.lower() in ['std', 'standard deviation', 'standard_deviation']:
+                            grouped_result[class_name] = class_data.std()
+                        elif stat.lower() in ['variance', 'var']:
+                            grouped_result[class_name] = class_data.var()
+                        elif stat.lower() in ['min', 'minimum']:
+                            grouped_result[class_name] = class_data.min()
+                        elif stat.lower() in ['max', 'maximum']:
+                            grouped_result[class_name] = class_data.max()
+                        elif stat.lower() in ['count', 'n']:
+                            grouped_result[class_name] = len(class_data)
+                    else:
+                        grouped_result[class_name] = None  # Mark as no valid data
                 
                 result = grouped_result
             
@@ -146,14 +177,16 @@ class MLInterface:
                 'status': 'success',
                 'result': result,
                 'statistic': stat,
-                'column': target_column,
+                'column': column,  # Original column name requested
+                'mapped_column': target_column,  # Actual column used
                 'filters': filters,
                 'grouping': group_by,
-                'sample_count': len(data),
+                'sample_count': len(cleaned_data),
+                'valid_data_count': len(column_data),
                 'data_source': 'Mock data analysis',
                 'data_quality': 'good',
                 'validation_details': validation,
-                'confidence': 'high' if len(data) >= 10 else 'medium'
+                'confidence': 'high' if len(column_data) >= 10 else 'medium'
             }
             
             # Add warnings if any
@@ -177,11 +210,22 @@ class MLInterface:
             if classes is None:
                 classes = ['OK', 'KO']
             
-            # Filter data for the specified classes
-            filtered_data = self.mock_data[self.mock_data['label'].isin(classes)]
+            # Handle special case where 'KO' means all non-OK classes
+            if 'KO' in classes and 'KO' not in self.mock_data['label'].unique():
+                # Create a modified dataset where all non-OK classes are labeled as 'KO'
+                filtered_data = self.mock_data.copy()
+                non_ok_mask = filtered_data['label'] != 'OK'
+                filtered_data.loc[non_ok_mask, 'label'] = 'KO'
+                
+                # Now filter for the requested classes
+                filtered_data = filtered_data[filtered_data['label'].isin(classes)]
+            else:
+                # Standard filtering for exact class matches
+                filtered_data = self.mock_data[self.mock_data['label'].isin(classes)]
             
-            # Validate data quality before analysis
+            # Validate data quality before analysis and get cleaned data
             validation = self._validate_data_quality(filtered_data, f"top {n} features analysis")
+            
             if not validation['is_valid']:
                 return {
                     'status': 'error',
@@ -191,7 +235,10 @@ class MLInterface:
                     'validation_details': validation
                 }
             
-            if len(filtered_data) == 0:
+            # Use cleaned data from validation
+            cleaned_data = validation['cleaned_data']
+            
+            if len(cleaned_data) == 0:
                 return {
                     'status': 'error',
                     'message': f'No data found for classes: {classes}',
@@ -200,16 +247,16 @@ class MLInterface:
                 }
             
             # Check if we have enough samples for reliable analysis
-            if len(filtered_data) < 5:
+            if len(cleaned_data) < 5:
                 return {
                     'status': 'error',
-                    'message': f'Insufficient data for reliable feature analysis. Need at least 5 samples, got {len(filtered_data)}',
+                    'message': f'Insufficient data for reliable feature analysis. Need at least 5 samples, got {len(cleaned_data)}',
                     'data_source': 'Mock data',
                     'data_quality': 'insufficient_samples'
                 }
             
             # Get feature columns (exclude label and sample)
-            feature_columns = [col for col in self.mock_data.columns if col not in ['label', 'sample']]
+            feature_columns = [col for col in cleaned_data.columns if col not in ['label', 'sample']]
             
             if len(feature_columns) == 0:
                 return {
@@ -219,61 +266,80 @@ class MLInterface:
                     'data_quality': 'no_features'
                 }
             
-            # Calculate F-statistics for each feature
+            # Calculate discriminative scores for each feature
             feature_scores = {}
             feature_details = {}
+            failed_features = []
             
             for feature in feature_columns:
                 try:
-                    # Get data for this feature
-                    feature_data = filtered_data[feature].dropna()
+                    # Get data for this feature and remove NaN values
+                    feature_data = cleaned_data[[feature, 'label']].dropna()
                     
                     # Skip if not enough data
                     if len(feature_data) < 3:
                         continue
                     
-                    # Calculate F-statistic using ANOVA
-                    from scipy import stats
+                    # Get class data
+                    class_data = {}
+                    class_means = {}
+                    valid_classes = []
                     
-                    class_data = []
                     for class_name in classes:
-                        class_values = filtered_data[filtered_data['label'] == class_name][feature].dropna()
+                        class_values = feature_data[feature_data['label'] == class_name][feature]
+                        
                         if len(class_values) > 0:
-                            class_data.append(class_values)
+                            class_data[class_name] = class_values
+                            class_means[class_name] = class_values.mean()
+                            valid_classes.append(class_name)
                     
-                    if len(class_data) < 2:
+                    if len(valid_classes) < 2:
                         continue
                     
-                    # Perform ANOVA
-                    f_stat, p_value = stats.f_oneway(*class_data)
-                    
-                    # Calculate class means for context
-                    class_means = {}
-                    for i, class_name in enumerate(classes):
-                        if i < len(class_data):
-                            class_means[class_name] = class_data[i].mean()
-                    
-                    feature_scores[feature] = f_stat
-                    feature_details[feature] = {
-                        'f_statistic': f_stat,
-                        'p_value': p_value,
-                        'class_means': class_means,
-                        'sample_count': len(feature_data)
-                    }
+                    # Simple discriminative score calculation
+                    if len(valid_classes) == 2:
+                        mean1, mean2 = class_means[valid_classes[0]], class_means[valid_classes[1]]
+                        discriminative_score = abs(mean1 - mean2)
+                        
+                        # Check if score is valid
+                        if np.isnan(discriminative_score) or np.isinf(discriminative_score):
+                            failed_features.append((feature, f"Invalid score: {discriminative_score}"))
+                            continue
+                        
+                        feature_scores[feature] = discriminative_score
+                        feature_details[feature] = {
+                            'discriminative_score': discriminative_score,
+                            'class_means': class_means,
+                            'sample_count': len(feature_data),
+                            'valid_classes': valid_classes,
+                            'analysis_method': 'Mean difference'
+                        }
                     
                 except Exception as e:
-                    logging.warning(f"Error calculating F-statistic for {feature}: {e}")
+                    failed_features.append((feature, f"Exception: {str(e)}"))
                     continue
             
             if not feature_scores:
+                # Provide detailed debugging information
+                debug_info = {
+                    'total_features': len(feature_columns),
+                    'cleaned_data_shape': cleaned_data.shape,
+                    'classes_found': cleaned_data['label'].unique().tolist(),
+                    'classes_requested': classes,
+                    'failed_features': failed_features,
+                    'sample_class_counts': cleaned_data['label'].value_counts().to_dict()
+                }
+                
                 return {
                     'status': 'error',
                     'message': 'Unable to calculate feature scores due to data issues',
                     'data_source': 'Mock data',
-                    'data_quality': 'calculation_failed'
+                    'data_quality': 'calculation_failed',
+                    'debug_info': debug_info,
+                    'validation_details': validation
                 }
             
-            # Sort features by F-statistic (higher = more discriminative)
+            # Sort features by discriminative score (higher = more discriminative)
             sorted_features = sorted(feature_scores.items(), key=lambda x: x[1], reverse=True)
             
             # Get top N features
@@ -283,14 +349,15 @@ class MLInterface:
             response = {
                 'status': 'success',
                 'top_features': top_features,
-                'feature_details': feature_details,
+                'feature_details': {k: v for k, v in feature_details.items() if k in top_features},
                 'classes': classes,
-                'sample_count': len(filtered_data),
+                'sample_count': len(cleaned_data),
+                'features_analyzed': len(feature_scores),
+                'features_skipped': len(feature_columns) - len(feature_scores),
                 'data_source': 'Mock data analysis',
                 'data_quality': 'good',
                 'validation_details': validation,
-                'confidence': 'high' if len(filtered_data) >= 10 else 'medium',
-                'analysis_method': 'ANOVA F-test'
+                'confidence': 'high' if len(cleaned_data) >= 10 else 'medium'
             }
             
             # Add warnings if any
@@ -300,7 +367,6 @@ class MLInterface:
             return response
             
         except Exception as e:
-            logging.error(f"Error in top features analysis: {e}")
             return {
                 'status': 'error',
                 'message': f'Error in feature analysis: {str(e)}',
@@ -310,20 +376,44 @@ class MLInterface:
     
     def _map_sensor_to_column(self, sensor_name: str) -> str:
         """Map sensor names to actual column names in the dataset."""
-        sensor_mapping = {
-            'HTS221_TEMP': 'temperature_mean',
-            'HTS221_HUM': 'humidity_mean',
-            'LPS22HH_PRESS': 'pressure_mean',
-            'IIS3DWB_ACC': 'acceleration_x_mean',  # Default to X-axis
-            'IIS3DWB_ACC_X': 'acceleration_x_mean',
-            'IIS3DWB_ACC_Y': 'acceleration_y_mean',
-            'IIS3DWB_ACC_Z': 'acceleration_z_mean'
+        # If the sensor_name is already a full column name, return it
+        if sensor_name in self.mock_data.columns:
+            return sensor_name
+        
+        # Try to find a matching column with _mean suffix (most common case)
+        potential_matches = []
+        for col in self.mock_data.columns:
+            if col.startswith(sensor_name):
+                potential_matches.append(col)
+        
+        # Prefer _mean columns, then _median, then any match
+        for suffix in ['_mean', '_median', '_max', '_min', '_std', '_variance']:
+            for col in potential_matches:
+                if col.endswith(suffix):
+                    return col
+        
+        # If no specific match found, return the first match or original name
+        if potential_matches:
+            return potential_matches[0]
+        
+        # Fallback: try common mappings based on your dataset structure
+        common_mappings = {
+            'temperature': 'HTS221_TEMP_TEMP_mean',
+            'humidity': 'HTS221_HUM_HUM_mean',
+            'pressure': 'LPS22HH_PRESS_PRESS_mean',
+            'acceleration_x': 'IIS3DWB_ACC_A_x_mean',
+            'acceleration_y': 'IIS3DWB_ACC_A_y_mean',
+            'acceleration_z': 'IIS3DWB_ACC_A_z_mean',
+            'gyroscope_x': 'ISM330DHCX_GYRO_G_x_mean',
+            'gyroscope_y': 'ISM330DHCX_GYRO_G_y_mean',
+            'gyroscope_z': 'ISM330DHCX_GYRO_G_z_mean',
+            'microphone': 'IMP23ABSU_MIC_MIC_mean'
         }
         
-        return sensor_mapping.get(sensor_name, sensor_name)
+        return common_mappings.get(sensor_name, sensor_name)
     
     def _get_stub_statistic(self, stat: str, column: str, filters: Optional[Dict] = None, 
-                           group_by: Optional[str] = None) -> Dict[str, Any]:
+                       group_by: Optional[str] = None) -> Dict[str, Any]:
         """Stub function that returns realistic mock data based on the CSV."""
         if self.mock_data is None:
             return self._get_fallback_stub_statistic(stat, column, filters, group_by)
@@ -338,48 +428,66 @@ class MLInterface:
                 data = data[data['label'].isin(filters['class'])]
             
             if actual_column not in data.columns:
-                return {
-                    'status': 'error',
-                    'message': f'Column {column} (mapped to {actual_column}) not found in dataset',
-                    'available_columns': list(data.columns)
-                }
+                # Try to find any column that contains the sensor name
+                matching_cols = [col for col in data.columns if column.lower() in col.lower()]
+                if matching_cols:
+                    actual_column = matching_cols[0]  # Use first match
+                else:
+                    return {
+                        'status': 'error',
+                        'message': f'Column {column} (mapped to {actual_column}) not found in dataset',
+                        'available_sensors': self.available_sensors
+                    }
             
             # Calculate statistic
-            if stat == 'mean':
-                result = data[actual_column].mean()
-            elif stat == 'median':
-                result = data[actual_column].median()
-            elif stat == 'std':
-                result = data[actual_column].std()
-            elif stat == 'variance':
-                result = data[actual_column].var()
-            elif stat == 'min':
-                result = data[actual_column].min()
-            elif stat == 'max':
-                result = data[actual_column].max()
-            elif stat == 'count':
-                result = data[actual_column].count()
+            column_data = data[actual_column].dropna()
+            
+            if len(column_data) == 0:
+                return {
+                    'status': 'error',
+                    'message': f'No valid data found in column {actual_column}',
+                    'sample_count': 0
+                }
+            
+            if stat.lower() in ['mean', 'average', 'avg']:
+                result = column_data.mean()
+            elif stat.lower() in ['median', 'med']:
+                result = column_data.median()
+            elif stat.lower() in ['std', 'standard_deviation']:
+                result = column_data.std()
+            elif stat.lower() in ['variance', 'var']:
+                result = column_data.var()
+            elif stat.lower() in ['min', 'minimum']:
+                result = column_data.min()
+            elif stat.lower() in ['max', 'maximum']:
+                result = column_data.max()
+            elif stat.lower() in ['count', 'n']:
+                result = len(column_data)
             else:
-                result = data[actual_column].mean()  # fallback
+                result = column_data.mean()  # fallback
             
             # Group by class if requested
             if group_by == 'class':
                 grouped_result = {}
-                for class_label in self.available_classes:
-                    class_data = data[data['label'] == class_label]
-                    if not class_data.empty:
-                        if stat == 'mean':
-                            grouped_result[class_label] = class_data[actual_column].mean()
-                        elif stat == 'median':
-                            grouped_result[class_label] = class_data[actual_column].median()
-                        elif stat == 'std':
-                            grouped_result[class_label] = class_data[actual_column].std()
-                        elif stat == 'variance':
-                            grouped_result[class_label] = class_data[actual_column].var()
-                        elif stat == 'count':
+                for class_label in data['label'].unique():
+                    class_data = data[data['label'] == class_label][actual_column].dropna()
+                    if len(class_data) > 0:
+                        if stat.lower() in ['mean', 'average', 'avg']:
+                            grouped_result[class_label] = class_data.mean()
+                        elif stat.lower() in ['median', 'med']:
+                            grouped_result[class_label] = class_data.median()
+                        elif stat.lower() in ['std', 'standard_deviation']:
+                            grouped_result[class_label] = class_data.std()
+                        elif stat.lower() in ['variance', 'var']:
+                            grouped_result[class_label] = class_data.var()
+                        elif stat.lower() in ['count', 'n']:
                             grouped_result[class_label] = len(class_data)
+                        elif stat.lower() in ['min', 'minimum']:
+                            grouped_result[class_label] = class_data.min()
+                        elif stat.lower() in ['max', 'maximum']:
+                            grouped_result[class_label] = class_data.max()
                         else:
-                            grouped_result[class_label] = class_data[actual_column].mean()
+                            grouped_result[class_label] = class_data.mean()
                 result = grouped_result
             
             return {
@@ -445,79 +553,214 @@ class MLInterface:
         }
 
     def get_feature_analysis(self, feature: str) -> Dict[str, Any]:
-        """Analyze a specific feature across all classes."""
-        if self.mock_data is not None:
-            try:
-                if feature not in self.mock_data.columns:
-                    return {'status': 'error', 'message': f'Feature {feature} not found'}
-                
-                analysis = {}
-                for class_label in self.available_classes:
-                    class_data = self.mock_data[self.mock_data['label'] == class_label][feature]
-                    if not class_data.empty:
-                        analysis[class_label] = {
-                            'mean': class_data.mean(),
-                            'std': class_data.std(),
-                            'min': class_data.min(),
-                            'max': class_data.max(),
-                            'count': class_data.count()
-                        }
-                
+        """Analyze a specific feature across all classes using REAL data."""
+        try:
+            if self.mock_data is None:
                 return {
-                    'status': 'success',
-                    'feature': feature,
-                    'analysis': analysis,
-                    'data_source': 'Mock data simulation'
+                    'status': 'error', 
+                    'message': 'No data loaded for analysis',
+                    'data_source': 'No data'
                 }
-            except Exception as e:
-                logging.error(f"Error in feature analysis: {e}")
-        
-        return {
-            'status': 'success',
-            'feature': feature,
-            'analysis': {
-                'OK': {'mean': 24.6, 'std': 0.8, 'min': 23.5, 'max': 25.5, 'count': 5},
-                'KO': {'mean': 22.3, 'std': 1.2, 'min': 21.0, 'max': 23.5, 'count': 5}
-            },
-            'data_source': 'Fallback mock data'
-        }
+            
+            # Map feature name to actual column
+            actual_column = self._map_sensor_to_column(feature)
+            
+            if actual_column not in self.mock_data.columns:
+                return {
+                    'status': 'error', 
+                    'message': f'Feature {feature} (mapped to {actual_column}) not found in dataset',
+                    'available_features': self.get_available_features()[:10]  # Show first 10
+                }
+            
+            # Validate data quality
+            validation = self._validate_data_quality(self.mock_data, f"feature analysis for {feature}")
+            if not validation['is_valid']:
+                return {
+                    'status': 'error',
+                    'message': f'Data quality issues prevent analysis: {", ".join(validation["errors"])}',
+                    'validation_details': validation
+                }
+            
+            cleaned_data = validation['cleaned_data']
+            
+            # Convert to binary classification (OK vs KO)
+            binary_data = cleaned_data.copy()
+            binary_data.loc[binary_data['label'] != 'OK', 'label'] = 'KO'
+            
+            # Calculate real statistics for each class
+            analysis = {}
+            
+            for class_label in ['OK', 'KO']:
+                class_data = binary_data[binary_data['label'] == class_label][actual_column].dropna()
+                
+                if len(class_data) > 0:
+                    analysis[class_label] = {
+                        'mean': float(class_data.mean()),
+                        'std': float(class_data.std()) if len(class_data) > 1 else 0.0,
+                        'min': float(class_data.min()),
+                        'max': float(class_data.max()),
+                        'median': float(class_data.median()),
+                        'count': int(len(class_data)),
+                        'variance': float(class_data.var()) if len(class_data) > 1 else 0.0
+                    }
+                else:
+                    analysis[class_label] = {
+                        'mean': None, 'std': None, 'min': None, 'max': None, 
+                        'median': None, 'count': 0, 'variance': None
+                    }
+            
+            # Calculate discriminative power
+            if analysis['OK']['mean'] is not None and analysis['KO']['mean'] is not None:
+                discriminative_score = abs(analysis['OK']['mean'] - analysis['KO']['mean'])
+                relative_difference = discriminative_score / max(abs(analysis['OK']['mean']), abs(analysis['KO']['mean']), 1e-10)
+            else:
+                discriminative_score = None
+                relative_difference = None
+            
+            return {
+                'status': 'success',
+                'feature': feature,
+                'mapped_column': actual_column,
+                'analysis': analysis,
+                'discriminative_score': discriminative_score,
+                'relative_difference': relative_difference,
+                'total_samples': len(cleaned_data),
+                'data_source': 'Real data calculation from feature_matrix.csv',
+                'validation_details': validation
+            }
+            
+        except Exception as e:
+            logging.error(f"Error in feature analysis: {e}")
+            return {
+                'status': 'error',
+                'message': f'Error analyzing feature {feature}: {str(e)}',
+                'data_source': 'Calculation error'
+            }
 
     def get_class_comparison(self, feature: str, classes: List[str] = None) -> Dict[str, Any]:
-        """Compare feature values between different classes."""
-        if classes is None:
-            classes = self.available_classes
-        
-        if self.mock_data is not None:
-            try:
-                comparison = {}
-                for class_label in classes:
-                    if class_label in self.mock_data['label'].values:
-                        class_data = self.mock_data[self.mock_data['label'] == class_label][feature]
-                        if not class_data.empty:
-                            comparison[class_label] = {
-                                'mean': class_data.mean(),
-                                'std': class_data.std(),
-                                'samples': len(class_data)
-                            }
-                
+        """Compare feature values between different classes using REAL data."""
+        try:
+            if self.mock_data is None:
                 return {
-                    'status': 'success',
-                    'feature': feature,
-                    'comparison': comparison,
-                    'data_source': 'Mock data simulation'
+                    'status': 'error',
+                    'message': 'No data loaded for comparison',
+                    'data_source': 'No data'
                 }
-            except Exception as e:
-                logging.error(f"Error in class comparison: {e}")
-        
-        return {
-            'status': 'success',
-            'feature': feature,
-            'comparison': {
-                'OK': {'mean': 24.6, 'std': 0.8, 'samples': 5},
-                'KO': {'mean': 22.3, 'std': 1.2, 'samples': 5}
-            },
-            'data_source': 'Fallback mock data'
-        }
+            
+            # Default to binary classification
+            if classes is None:
+                classes = ['OK', 'KO']
+            
+            # Map feature name to actual column
+            actual_column = self._map_sensor_to_column(feature)
+            
+            if actual_column not in self.mock_data.columns:
+                return {
+                    'status': 'error',
+                    'message': f'Feature {feature} (mapped to {actual_column}) not found in dataset',
+                    'available_features': self.get_available_features()[:10]
+                }
+            
+            # Validate data quality
+            validation = self._validate_data_quality(self.mock_data, f"class comparison for {feature}")
+            if not validation['is_valid']:
+                return {
+                    'status': 'error',
+                    'message': f'Data quality issues prevent comparison: {", ".join(validation["errors"])}',
+                    'validation_details': validation
+                }
+            
+            cleaned_data = validation['cleaned_data']
+            
+            # Handle binary classification if 'KO' is requested but doesn't exist as exact label
+            if 'KO' in classes and 'KO' not in cleaned_data['label'].unique():
+                # Create binary version
+                binary_data = cleaned_data.copy()
+                binary_data.loc[binary_data['label'] != 'OK', 'label'] = 'KO'
+                comparison_data = binary_data
+            else:
+                comparison_data = cleaned_data
+            
+            # Calculate real comparisons
+            comparison = {}
+            
+            for class_label in classes:
+                if class_label in comparison_data['label'].values:
+                    class_data = comparison_data[comparison_data['label'] == class_label][actual_column].dropna()
+                    
+                    if len(class_data) > 0:
+                        comparison[class_label] = {
+                            'mean': float(class_data.mean()),
+                            'std': float(class_data.std()) if len(class_data) > 1 else 0.0,
+                            'median': float(class_data.median()),
+                            'min': float(class_data.min()),
+                            'max': float(class_data.max()),
+                            'samples': int(len(class_data)),
+                            'variance': float(class_data.var()) if len(class_data) > 1 else 0.0,
+                            'q25': float(class_data.quantile(0.25)),
+                            'q75': float(class_data.quantile(0.75))
+                        }
+                    else:
+                        comparison[class_label] = {
+                            'mean': None, 'std': None, 'median': None,
+                            'min': None, 'max': None, 'samples': 0,
+                            'variance': None, 'q25': None, 'q75': None
+                        }
+                else:
+                    comparison[class_label] = {
+                        'mean': None, 'std': None, 'median': None,
+                        'min': None, 'max': None, 'samples': 0,
+                        'variance': None, 'q25': None, 'q75': None,
+                        'note': f'Class {class_label} not found in data'
+                    }
+            
+            # Calculate statistical significance if we have OK and KO
+            statistical_tests = {}
+            if 'OK' in comparison and 'KO' in comparison:
+                if comparison['OK']['samples'] > 0 and comparison['KO']['samples'] > 0:
+                    ok_data = comparison_data[comparison_data['label'] == 'OK'][actual_column].dropna()
+                    ko_data = comparison_data[comparison_data['label'] == 'KO'][actual_column].dropna()
+                    
+                    # Simple t-test like comparison
+                    try:
+                        from scipy import stats
+                        t_stat, p_value = stats.ttest_ind(ok_data, ko_data)
+                        statistical_tests['t_test'] = {
+                            't_statistic': float(t_stat),
+                            'p_value': float(p_value),
+                            'significant': p_value < 0.05
+                        }
+                    except ImportError:
+                        # Manual calculation if scipy not available
+                        pooled_std = np.sqrt(((len(ok_data) - 1) * ok_data.var() + 
+                                            (len(ko_data) - 1) * ko_data.var()) / 
+                                        (len(ok_data) + len(ko_data) - 2))
+                        t_stat = (ok_data.mean() - ko_data.mean()) / (pooled_std * np.sqrt(1/len(ok_data) + 1/len(ko_data)))
+                        statistical_tests['t_test'] = {
+                            't_statistic': float(t_stat),
+                            'note': 'Manual calculation (scipy not available)',
+                            'pooled_std': float(pooled_std)
+                        }
+            
+            return {
+                'status': 'success',
+                'feature': feature,
+                'mapped_column': actual_column,
+                'comparison': comparison,
+                'classes_compared': classes,
+                'statistical_tests': statistical_tests,
+                'total_samples': len(cleaned_data),
+                'data_source': 'Real data calculation from feature_matrix.csv',
+                'validation_details': validation
+            }
+            
+        except Exception as e:
+            logging.error(f"Error in class comparison: {e}")
+            return {
+                'status': 'error',
+                'message': f'Error comparing classes for feature {feature}: {str(e)}',
+                'data_source': 'Calculation error'
+            }
 
     def get_plot_data(self, plot_type: str, features: List[str] = None,
                        filters: Optional[Dict] = None) -> Dict[str, Any]:
@@ -721,7 +964,8 @@ class MLInterface:
     def get_available_features(self) -> List[str]:
         """Get list of available features."""
         if self.mock_data is not None:
-            return list(self.mock_data.columns[2:])  # Exclude label and sample
+            # Return actual column names excluding label and sample
+            return [col for col in self.mock_data.columns if col not in ['label', 'sample']]
         return self.available_sensors
 
     def create_plot_from_data(self, plot_type: str, plot_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -989,7 +1233,8 @@ class MLInterface:
                 'is_valid': True,
                 'warnings': [],
                 'errors': [],
-                'data_info': {}
+                'data_info': {},
+                'cleaned_data': data.copy()  # Add cleaned data to result
             }
             
             # Check if data exists
@@ -1003,28 +1248,72 @@ class MLInterface:
             if len(numeric_columns) == 0:
                 validation_result['warnings'].append("No numeric columns found for analysis")
             
-            # Check for missing values
-            missing_counts = data.isnull().sum()
+            # Handle infinite values - Clean them instead of failing
+            cleaned_data = data.copy()
+            inf_counts = {}
+            total_inf_replaced = 0
+            
+            for col in numeric_columns:
+                # Count infinite values
+                inf_mask = np.isinf(cleaned_data[col])
+                inf_count = inf_mask.sum()
+                
+                if inf_count > 0:
+                    inf_counts[col] = inf_count
+                    total_inf_replaced += inf_count
+                    
+                    # Replace infinite values with NaN
+                    cleaned_data.loc[inf_mask, col] = np.nan
+                    
+                    validation_result['warnings'].append(
+                        f"Replaced {inf_count} infinite values with NaN in column '{col}'"
+                    )
+            
+            if total_inf_replaced > 0:
+                validation_result['warnings'].append(
+                    f"Total infinite values cleaned: {total_inf_replaced}"
+                )
+                # Update the cleaned data in the result
+                validation_result['cleaned_data'] = cleaned_data
+            
+            # Check for missing values (including newly created NaNs)
+            missing_counts = cleaned_data.isnull().sum()
             if missing_counts.sum() > 0:
-                validation_result['warnings'].append(f"Found {missing_counts.sum()} missing values")
+                validation_result['warnings'].append(
+                    f"Found {missing_counts.sum()} missing values (including cleaned infinite values)"
+                )
             
             # Check sample size
-            sample_count = len(data)
+            sample_count = len(cleaned_data)
             if sample_count < 5:
-                validation_result['warnings'].append(f"Small sample size ({sample_count}) may affect statistical reliability")
+                validation_result['warnings'].append(
+                    f"Small sample size ({sample_count}) may affect statistical reliability"
+                )
             
-            # Check for infinite values
-            inf_counts = np.isinf(data.select_dtypes(include=[np.number])).sum().sum()
-            if inf_counts > 0:
-                validation_result['errors'].append(f"Found {inf_counts} infinite values")
-                validation_result['is_valid'] = False
+            # For numeric operations, check if we have enough valid data after cleaning
+            valid_data_counts = {}
+            for col in numeric_columns:
+                valid_count = cleaned_data[col].notna().sum()
+                valid_data_counts[col] = valid_count
+                
+                if valid_count == 0:
+                    validation_result['errors'].append(
+                        f"No valid data remaining in column '{col}' after cleaning"
+                    )
+                    validation_result['is_valid'] = False
+                elif valid_count < 3:
+                    validation_result['warnings'].append(
+                        f"Very few valid values ({valid_count}) in column '{col}'"
+                    )
             
             # Store data information
             validation_result['data_info'] = {
                 'sample_count': sample_count,
                 'numeric_columns': numeric_columns,
                 'missing_values': missing_counts.to_dict(),
-                'data_shape': data.shape
+                'infinite_values_cleaned': inf_counts,
+                'valid_data_counts': valid_data_counts,
+                'data_shape': cleaned_data.shape
             }
             
             return validation_result
@@ -1034,8 +1323,262 @@ class MLInterface:
                 'is_valid': False,
                 'errors': [f"Data validation error: {str(e)}"],
                 'warnings': [],
-                'data_info': {}
+                'data_info': {},
+                'cleaned_data': data.copy() if data is not None else None
             }
 
 # Global instance
 ml_interface = MLInterface()
+
+if __name__ == "__main__":
+    print("=" * 80)
+    print("TESTING ML INTERFACE WITH UPDATED DATASET COMPATIBILITY")
+    print("=" * 80)
+    
+    # Test 1: Check if data loaded successfully
+    print("\n1. DATA LOADING TEST")
+    print("-" * 40)
+    if ml_interface.mock_data is not None:
+        print(f"✓ Data loaded successfully")
+        print(f"  - Shape: {ml_interface.mock_data.shape}")
+        print(f"  - Classes: {ml_interface.mock_data['label'].value_counts().to_dict()}")
+        print(f"  - Sample columns: {list(ml_interface.mock_data.columns[:5])}...")
+    else:
+        print("✗ Failed to load data")
+        exit(1)
+    
+    # Test 2: Check available sensors
+    print("\n2. AVAILABLE SENSORS TEST")
+    print("-" * 40)
+    available_sensors = ml_interface.available_sensors
+    print(f"Available sensors ({len(available_sensors)}):")
+    for i, sensor in enumerate(available_sensors[:10], 1):
+        print(f"  {i}. {sensor}")
+    if len(available_sensors) > 10:
+        print(f"  ... and {len(available_sensors) - 10} more")
+    
+    # Test 3: Check available features
+    print("\n3. AVAILABLE FEATURES TEST")
+    print("-" * 40)
+    available_features = ml_interface.get_available_features()
+    print(f"Total features: {len(available_features)}")
+    print("Sample features:")
+    for i, feature in enumerate(available_features[:10], 1):
+        print(f"  {i}. {feature}")
+    if len(available_features) > 10:
+        print(f"  ... and {len(available_features) - 10} more")
+    
+    # Test 4: Test sensor name mapping
+    print("\n4. SENSOR MAPPING TEST")
+    print("-" * 40)
+    test_sensors = [
+        'temperature',
+        'HTS221_TEMP',
+        'HTS221_TEMP_TEMP_mean',
+        'humidity',
+        'HTS221_HUM',
+        'pressure',
+        'LPS22HH_PRESS',
+        'acceleration_x',
+        'IIS3DWB_ACC',
+        'gyroscope_x',
+        'ISM330DHCX_GYRO'
+    ]
+    
+    for sensor in test_sensors:
+        mapped = ml_interface._map_sensor_to_column(sensor)
+        exists = mapped in ml_interface.mock_data.columns
+        status = "✓" if exists else "✗"
+        print(f"  {status} '{sensor}' -> '{mapped}' (exists: {exists})")
+    
+    # Test 5: Basic statistics tests
+    print("\n5. BASIC STATISTICS TEST")
+    print("-" * 40)
+    
+    # Test with actual column names from dataset
+    test_cases = [
+        ('mean', 'HTS221_TEMP_TEMP_mean'),
+        ('std', 'HTS221_TEMP_TEMP_mean'),
+        ('mean', 'HTS221_HUM_HUM_mean'),
+        ('mean', 'LPS22HH_PRESS_PRESS_mean'),
+        ('mean', 'IIS3DWB_ACC_A_x_mean'),
+        ('mean', 'ISM330DHCX_GYRO_G_x_mean'),
+    ]
+    
+    # Also test with mapped names
+    mapped_test_cases = [
+        ('mean', 'temperature'),
+        ('std', 'temperature'),
+        ('mean', 'humidity'),
+        ('mean', 'pressure'),
+    ]
+    
+    all_test_cases = test_cases + mapped_test_cases
+    
+    for stat_type, column in all_test_cases:
+        print(f"\nTesting {stat_type} for {column}:")
+        result = ml_interface.get_statistic(stat=stat_type, column=column)
+        
+        if result['status'] == 'success':
+            print(f"  ✓ Success: {result['result']:.4f}")
+            print(f"    - Mapped to: {result.get('mapped_column', 'N/A')}")
+            print(f"    - Sample count: {result.get('sample_count', 'N/A')}")
+        else:
+            print(f"  ✗ Error: {result['message']}")
+    
+    # Test 6: Grouped statistics by class
+    print("\n6. GROUPED STATISTICS TEST")
+    print("-" * 40)
+    
+    print("Testing mean temperature by class:")
+    result = ml_interface.get_statistic(stat='mean', column='HTS221_TEMP_TEMP_mean', group_by='class')
+    
+    if result['status'] == 'success':
+        print("  ✓ Success:")
+        for class_name, value in result['result'].items():
+            print(f"    - {class_name}: {value:.4f}")
+    else:
+        print(f"  ✗ Error: {result['message']}")
+    
+    # Test 7: Filtered statistics
+    print("\n7. FILTERED STATISTICS TEST")
+    print("-" * 40)
+    
+    print("Testing mean temperature for OK and KO classes only:")
+    result = ml_interface.get_statistic(
+        stat='mean', 
+        column='HTS221_TEMP_TEMP_mean', 
+        filters={'class': ['OK', 'KO']},
+        group_by='class'
+    )
+    
+    if result['status'] == 'success':
+        print("  ✓ Success:")
+        for class_name, value in result['result'].items():
+            print(f"    - {class_name}: {value:.4f}")
+    else:
+        print(f"  ✗ Error: {result['message']}")
+    
+    # Test 8: Top features analysis
+    print("\n8. TOP FEATURES ANALYSIS TEST")
+    print("-" * 40)
+    
+    print("Getting top 5 discriminative features:")
+    result = ml_interface.get_top_features(n=5, classes=['OK', 'KO'])
+    
+    if result['status'] == 'success':
+        print("  ✓ Success:")
+        for i, feature in enumerate(result['top_features'], 1):
+            details = result['feature_details'][feature]
+            print(f"    {i}. {feature}")
+            print(f"       Discriminative score: {details['discriminative_score']:.4f}")
+            print(f"       Analysis method: {details['analysis_method']}")
+            print(f"       Class means: {details['class_means']}")
+            print(f"       Sample count: {details['sample_count']}")
+    else:
+        print(f"  ✗ Error: {result['message']}")
+    
+    # Test 9: Dataset overview
+    print("\n9. DATASET OVERVIEW TEST")
+    print("-" * 40)
+    
+    overview = ml_interface.get_dataset_overview()
+    if overview['status'] == 'success':
+        print("  ✓ Success:")
+        print(f"    - Total samples: {overview['total_samples']}")
+        print(f"    - Classes: {overview['classes']}")
+        print(f"    - Number of features: {len(overview['features'])}")
+    else:
+        print(f"  ✗ Error: {overview.get('message', 'Unknown error')}")
+    
+    # Test 10: Data quality assessment
+    print("\n10. DATA QUALITY ASSESSMENT TEST")
+    print("-" * 40)
+    
+    quality_summary = ml_interface.get_data_quality_summary()
+    if quality_summary['status'] == 'success':
+        summary = quality_summary['data_quality_summary']
+        print("  ✓ Success:")
+        print(f"    - Overall quality: {summary['overall_quality']}")
+        print(f"    - Quality score: {summary['quality_score']}/100")
+        print(f"    - Total samples: {summary['total_samples']}")
+        print(f"    - Total features: {summary['total_features']}")
+        print(f"    - Missing data: {summary['missing_data_percentage']:.2f}%")
+        if summary['quality_issues']:
+            print("    - Issues:")
+            for issue in summary['quality_issues']:
+                print(f"      • {issue}")
+    else:
+        print(f"  ✗ Error: {quality_summary['message']}")
+    
+    # Test 11: Error handling tests
+    print("\n11. ERROR HANDLING TEST")
+    print("-" * 40)
+    
+    # Test with non-existent column
+    print("Testing with non-existent column:")
+    result = ml_interface.get_statistic(stat='mean', column='NONEXISTENT_SENSOR')
+    if result['status'] == 'error':
+        print(f"  ✓ Properly handled error: {result['message']}")
+    else:
+        print(f"  ✗ Should have failed but got: {result}")
+    
+    # Test with invalid statistic
+    print("\nTesting with invalid statistic:")
+    result = ml_interface.get_statistic(stat='invalid_stat', column='HTS221_TEMP_TEMP_mean')
+    if result['status'] == 'error':
+        print(f"  ✓ Properly handled error: {result['message']}")
+    else:
+        print(f"  ✗ Should have failed but got: {result}")
+    
+    print("\n" + "=" * 80)
+    print("TESTING COMPLETED")
+    print("=" * 80)
+    
+    # Summary of key findings
+    print(f"\nKEY FINDINGS:")
+    print(f"- Dataset shape: {ml_interface.mock_data.shape if ml_interface.mock_data is not None else 'N/A'}")
+    print(f"- Available sensors: {len(ml_interface.available_sensors)}")
+    print(f"- Available features: {len(ml_interface.get_available_features())}")
+    print(f"- Classes in dataset: {list(ml_interface.mock_data['label'].unique()) if ml_interface.mock_data is not None else 'N/A'}")
+
+
+
+    # Test feature - using temperature as it's commonly available
+    test_feature = 'HTS221_TEMP_TEMP_mean'
+    
+    print(f"\n1. TESTING FEATURE: {test_feature}")
+    print("-" * 50)
+    
+    # Run the function
+    result = ml_interface.get_feature_analysis(test_feature)
+    
+    # Display results
+    if result['status'] == 'success':
+        print("✓ Function executed successfully")
+        print(f"Feature: {result['feature']}")
+        print(f"Mapped column: {result['mapped_column']}")
+        print(f"Total samples: {result['total_samples']}")
+        
+        print("\nClass Analysis Results:")
+        for class_name, stats in result['analysis'].items():
+            print(f"\n{class_name} Class:")
+            if stats['count'] > 0:
+                print(f"  - Count: {stats['count']}")
+                print(f"  - Mean: {stats['mean']:.6f}")
+                print(f"  - Std: {stats['std']:.6f}")
+                print(f"  - Min: {stats['min']:.6f}")
+                print(f"  - Max: {stats['max']:.6f}")
+                print(f"  - Median: {stats['median']:.6f}")
+                print(f"  - Variance: {stats['variance']:.6f}")
+            else:
+                print(f"  - No data for this class")
+        
+        if result.get('discriminative_score'):
+            print(f"\nDiscriminative Score: {result['discriminative_score']:.6f}")
+            print(f"Relative Difference: {result['relative_difference']:.6f}")
+        
+    else:
+        print("✗ Function failed:")
+        print(f"Error: {result['message']}")
+    
