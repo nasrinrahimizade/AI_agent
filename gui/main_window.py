@@ -7,6 +7,7 @@ from PySide6.QtGui import QAction
 from gui.views.chat_view import ChatView
 from gui.views.help_view import HelpView
 from core.data_loader import load_dataset
+from core.ml_interface import ml_interface
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -77,9 +78,10 @@ class MainWindow(QMainWindow):
         )
         if fileName:
             df = load_dataset(fileName)
-            # distribute to views
+            
+            # Update ML interface with the new data path
+            ml_interface.feature_matrix_path = fileName
+            ml_interface.mock_data = df  # Set the dataframe directly
+            
+            # Distribute to views
             self.chatView.set_dataframe(df)
-
-    def showHelpDialog(self):
-        # Kept for backward compatibility; open full Help view instead
-        self.stack.setCurrentIndex(1)

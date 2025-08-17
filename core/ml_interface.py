@@ -15,12 +15,12 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for server environments
 
-try:
-    from ML.ai_agent_backend import StatisticalAIAgent
-    ML_AVAILABLE = True
-except ImportError:
-    ML_AVAILABLE = False
-    logging.warning("ML layer not available, using stub functions")
+# try:
+#     from ML.ai_agent_backend import StatisticalAIAgent
+#     ML_AVAILABLE = True
+# except ImportError:
+#     ML_AVAILABLE = False
+#     logging.warning("ML layer not available, using stub functions")
 
 class MLInterface:
     def __init__(self, feature_matrix_path: str = "ML/feature_matrix.csv"):
@@ -29,9 +29,9 @@ class MLInterface:
         self.initialized = False
         self.mock_data = None
         
-        if ML_AVAILABLE:
+        if True:
             try:
-                self.ml_agent = StatisticalAIAgent(feature_matrix_path) ##ok
+                # self.ml_agent = StatisticalAIAgent(feature_matrix_path) ##ok
                 self.initialized = True
                 logging.info("ML Interface initialized with StatisticalAIAgent") ##ok
             except Exception as e:

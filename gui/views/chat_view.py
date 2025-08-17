@@ -11,6 +11,7 @@ from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_b
                            prepare_time_series_analysis, prepare_frequency_domain_plot, \
                            prepare_scatter_plot_features
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from core.ml_interface import ml_interface
 
 class ChatView(QWidget):
     def __init__(self, parent=None, plot_view=None, open_dataset_callback=None):
@@ -64,8 +65,14 @@ class ChatView(QWidget):
         ])
 
     def set_dataframe(self, df):
-        # Optional: if ChatView needs the dataframe, store it for context or future use
+        # Store the dataframe
         self._dataframe = df
+        
+        # Get dataset overview from ML interface
+        overview = ml_interface.get_dataset_overview()
+        
+        # Display the overview in chat
+        self._display_dataset_overview(overview)
 
     def setup_ui(self):
         """Setup the chat interface UI"""
@@ -430,3 +437,42 @@ class ChatView(QWidget):
         clean_response = re.sub(r'\s+', ' ', clean_response).strip()
         
         return clean_response
+    
+    def _display_dataset_overview(self, overview):
+        """Display dataset overview in the chat"""
+        if overview['status'] == 'success':
+            # Format the overview message
+            message = self._format_overview_message(overview)
+            self._append_message("System", message, Qt.AlignLeft)
+        else:
+            error_msg = f"Could not analyze dataset: {overview.get('message', 'Unknown error')}"
+            self._append_message("System", error_msg, Qt.AlignLeft)
+
+    def _format_overview_message(self, overview):
+        """Format the overview data into a readable message"""
+        msg = "📊 **Dataset Overview**\n\n"
+        
+        # Basic info
+        msg += f"• **Samples**: {overview['total_samples']}\n"
+        msg += f"• **Features**: {overview['total_features']}\n"
+        msg += f"• **Data Quality**: {overview.get('data_quality_summary', {}).get('overall_quality', 'Unknown')}\n\n"
+        
+        # Class distribution
+        if overview.get('classes'):
+            msg += "**Class Distribution:**\n"
+            for class_name, count in overview['classes'].items():
+                percentage = (count / overview['total_samples'] * 100) if overview['total_samples'] > 0 else 0
+                msg += f"• {class_name}: {count} samples ({percentage:.1f}%)\n"
+            msg += "\n"
+        
+        # Sample features
+        if overview.get('sample_feature_names'):
+            msg += "**Sample Features:**\n"
+            for feature in overview['sample_feature_names'][:5]:
+                msg += f"• {feature}\n"
+            if overview['total_feature_count'] > 5:
+                msg += f"• ... and {overview['total_feature_count'] - 5} more\n"
+        
+        msg += "\n💡 You can now ask me to analyze specific features or create visualizations!"
+        
+        return msg
