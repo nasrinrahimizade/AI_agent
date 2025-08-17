@@ -47,24 +47,24 @@ class HelpView(QWidget):
                 <h2>📊 Statistical Analysis Requests</h2>
                 <h3>Basic Statistics</h3>
                 <ul>
-                    <li><b>"What is the mean temperature for OK samples from HTS221_TEMP?"</b> - Get average temperature for specific class and sensor</li>
-                    <li><b>"Calculate the median humidity for KO_HIGH_2mm samples"</b> - Get middle value for specific class</li>
-                    <li><b>"Show the variance of acceleration in IIS3DWB_ACC for OK and KO"</b> - Compare variability between classes</li>
+                    <li><b>"What is the mean temperature for KO_HIGH_2mm samples from HTS221_TEMP?"</b> - Get average temperature for specific class and sensor</li>
+                    <li><b>"Calculate the median humidity for KO_LOW_2mm samples"</b> - Get middle value for specific class</li>
+                    <li><b>"Show the variance of acceleration in IIS3DWB_ACC for KO_HIGH_2mm and KO_LOW_2mm"</b> - Compare variability between classes</li>
                     <li><b>"Give me the standard deviation of pressure from LPS22HH_PRESS for each class"</b> - Get spread across all classes</li>
-                    <li><b>"List the top 3 statistical indices that best separate OK and KO samples"</b> - Find most discriminative features</li>
+                    <li><b>"List the top 3 statistical indices that best separate KO_HIGH_2mm and KO_LOW_2mm samples"</b> - Find most discriminative features</li>
                 </ul>
 
                 <h3>Sensor-Specific Requests</h3>
                 <ul>
-                    <li><b>HTS221 Temperature Sensor:</b> "What is the mean HTS221_TEMP for OK samples?"</li>
+                    <li><b>HTS221 Temperature Sensor:</b> "What is the mean HTS221_TEMP for KO_HIGH_2mm samples?"</li>
                     <li><b>HTS221 Humidity Sensor:</b> "Show me humidity stats from HTS221_HUM for each class"</li>
-                    <li><b>LPS22HH Pressure Sensor:</b> "Calculate pressure variance from LPS22HH_PRESS for KO samples"</li>
-                    <li><b>IIS3DWB Accelerometer:</b> "Compare acceleration data from IIS3DWB_ACC between OK and KO"</li>
+                    <li><b>LPS22HH Pressure Sensor:</b> "Calculate pressure variance from LPS22HH_PRESS for KO_LOW_2mm samples"</li>
+                    <li><b>IIS3DWB Accelerometer:</b> "Compare acceleration data from IIS3DWB_ACC between KO_HIGH_2mm and KO_LOW_2mm"</li>
                 </ul>
 
                 <h3>Grouped Analysis</h3>
                 <ul>
-                    <li><b>"Show me temperature statistics grouped by class"</b> - Compare across OK/KO groups</li>
+                    <li><b>"Show me temperature statistics grouped by class"</b> - Compare across KO_HIGH_2mm/KO_LOW_2mm/KO_LOW_4mm groups</li>
                     <li><b>"What is the mean humidity for each class?"</b> - Class-specific averages</li>
                     <li><b>"Compare pressure readings between classes"</b> - Multi-class comparison</li>
                 </ul>
@@ -128,9 +128,9 @@ class HelpView(QWidget):
                 <h2>📋 Class Comparison & Classification</h2>
                 <h3>Multi-Class Analysis</h3>
                 <ul>
-                    <li><b>"Compare OK vs KO samples statistically"</b> - Binary classification analysis</li>
+                    <li><b>"Compare KO_HIGH_2mm vs KO_LOW_2mm samples statistically"</b> - Binary classification analysis</li>
                     <li><b>"Show me differences between all classes"</b> - Multi-class comparison</li>
-                    <li><b>"Analyze KO_HIGH_2mm vs KO_LOW_2mm"</b> - Subclass comparison</li>
+                    <li><b>"Analyze KO_HIGH_2mm vs KO_LOW_4mm"</b> - Subclass comparison</li>
                     <li><b>"Which features best separate the classes?"</b> - Classification feature selection</li>
                 </ul>
 
@@ -138,7 +138,7 @@ class HelpView(QWidget):
                 <ul>
                     <li><b>"Are the differences between classes statistically significant?"</b> - Hypothesis testing</li>
                     <li><b>"Show me confidence intervals for the comparisons"</b> - Statistical confidence</li>
-                    <li><b>"What is the effect size between OK and KO?"</b> - Practical significance</li>
+                    <li><b>"What is the effect size between KO_HIGH_2mm and KO_LOW_2mm?"</b> - Practical significance</li>
                 </ul>
 
                 <h2>🎯 Advanced AI Requests</h2>

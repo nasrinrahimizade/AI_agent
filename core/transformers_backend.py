@@ -71,6 +71,10 @@ class Chatbot:
         self.history = []           # list of (AI, User)
         self.history_limit = history_limit
         
+        # Add missing attributes for ML response tracking
+        self.user_messages = []     # Track user messages for ML responses
+        self.ai_messages = []       # Track AI messages for ML responses
+        
         # Enhanced response quality tracking and learning
         self.response_metrics = {
             'total_responses': 0,
@@ -272,7 +276,7 @@ class Chatbot:
             
         # Track recent questions (keep only last 3)
         question_context = {
-            'text': user_input[:50],  # Shorter text
+            'text': user_input[:60],  # Shorter text
             'intent': analysis['intent'],
             'sensor': analysis['sensor_mentioned']
         }
@@ -378,6 +382,10 @@ class Chatbot:
     def generate(self, user_input: str, max_new_tokens: int =230) -> str:
         start_time = time.time()
         
+        # IMPORTANT: This method has TWO response paths:
+        # 1. ML SYSTEM PATH: For data analysis requests (returns early, no decode)
+        # 2. LLM FALLBACK PATH: For general conversation (uses decode function)
+        
         # 1) Use our new unified parser to detect command type and response preference
         try:
             parsed_command = parse_command(user_input)
@@ -392,13 +400,8 @@ class Chatbot:
                     response_type = response_data.get('response_type', 'auto')
                     
                     if response_type == 'text':
-                        # Text-only response - no plots
+                        # Text-only response - no plots, no context, no suggestions
                         response = response_data['main_response']
-                        if response_data.get('context'):
-                            response += f"\n\n{response_data['context']}"
-                        if response_data.get('suggestions'):
-                            suggestions = "\n".join([f"• {s}" for s in response_data['suggestions']])
-                            response += f"\n\nSuggestions:\n{suggestions}"
                     elif response_type == 'visual':
                         # Visual response - include plot trigger
                         response = response_data['main_response']
@@ -415,7 +418,32 @@ class Chatbot:
                     # Update conversation context and return
                     self.user_messages.append(user_input)
                     self.ai_messages.append(response)
+                    
+                    # Also update the main history for consistency
+                    self.history.append(("User", user_input))
+                    self.history.append(("AI", response))
                     self._prune_history()
+                    
+                    # Update response metrics for ML responses
+                    response_time = time.time() - start_time
+                    ml_analysis = {
+                        'intent': 'ml_analysis',
+                        'confidence': 0.9,
+                        'expertise_level': 'intermediate',
+                        'sensor_mentioned': None,
+                        'plot_request': response_type == 'visual',
+                        'specific_plot_type': False,
+                        'urgency': 'normal',
+                        'emotional_tone': 'neutral',
+                        'complexity_level': 'medium',
+                        'follow_up_question': False,
+                        'clarification_needed': False,
+                        'is_general_conversation': False,
+                        'commands_detected': [],
+                        'prompt_adjustments': []
+                    }
+                    self._update_response_metrics(response, ml_analysis, response_time)
+                    
                     return response
                     
         except Exception as e:
@@ -423,6 +451,9 @@ class Chatbot:
             pass
         
         # 3) Fallback to old LLM-based system for non-data requests
+        # Note: The decode function below is ONLY for LLM-generated responses, 
+        # NOT for ML responses which are handled above and returned directly
+        
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
         
@@ -471,6 +502,8 @@ class Chatbot:
             no_repeat_ngram_size=3,  # Prevent repetition of 3-grams
         )
 
+        # DECODE FUNCTION: This is ONLY for LLM-generated responses, NOT for ML responses
+        # ML responses are handled above and returned directly without going through decode
         decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         # strip out the prompt echo - use more robust method to avoid losing first character
         if decoded.startswith(prompt):
