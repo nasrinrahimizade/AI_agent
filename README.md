@@ -37,7 +37,7 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Learning Capability**: AI remembers your preferences and improves over time
 
 ### **📊 Advanced Visualization**
-- **Multiple Plot Types**: Histograms, boxplots, scatter plots, correlation matrices
+- **Multiple Plot Types**: Histograms, line graphs, scatter plots, correlation matrices
 - **Time Series Analysis**: Temporal pattern detection and trend analysis
 - **Frequency Domain**: FFT analysis for signal processing applications
 - **Sensor-Specific**: Specialized analysis for accelerometer, temperature, pressure, humidity
@@ -130,7 +130,7 @@ python main.py
 
 ### **📈 Plot Generation**
 ```
-"Show me a boxplot of accelerometer data"
+"Show me a line graph of accelerometer data"
 "Create a histogram of temperature readings"
 "Display correlation matrix between sensors"
 "Generate time series analysis of pressure data"
@@ -204,7 +204,7 @@ Sample_002,KO,0.234,0.567,0.890,...
 ## 🎨 **Visualization Types**
 
 ### **Statistical Plots**
-- **Boxplots**: Class comparison and outlier detection
+- **Line Graphs**: Class comparison and trend analysis
 - **Histograms**: Distribution analysis and pattern recognition
 - **Scatter Plots**: Feature relationship exploration
 - **Correlation Matrices**: Feature association analysis

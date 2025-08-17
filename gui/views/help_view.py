@@ -44,6 +44,35 @@ class HelpView(QWidget):
                     <li><b>View Results:</b> Analysis results and plots appear in the integrated interface</li>
                 </ol>
 
+                <h2>⚡ Quick Start - Line Graphs & Sensor Analysis</h2>
+                <p><b>Line graphs are now the default! The app automatically creates accurate sensor-specific visualizations:</b></p>
+                <ul>
+                    <li><b>🕒 Line Graphs (Default):</b> "Generate a plot of accelerometer data" - Automatically creates line graphs</li>
+                    <li><b>🎯 Sensor-Specific:</b> "Show me humidity data" - Shows only humidity sensor data, no more or less</li>
+                    <li><b>📊 Precise Data:</b> "Create a line graph of temperature data" - Shows only temperature sensors</li>
+                </ul>
+
+                <h2>🎯 NEW: Smart Sensor Detection & Line Graphs</h2>
+                <h3>Automatic Sensor Recognition</h3>
+                <p>The app now intelligently detects sensor types and creates precise line graphs:</p>
+                <ul>
+                    <li><b>Temperature Requests:</b> "Show temperature data" → Only temperature sensors (HTS221, LPS22HH, STTS751)</li>
+                    <li><b>Humidity Requests:</b> "Show humidity data" → Only humidity sensors (HTS221)</li>
+                    <li><b>Accelerometer Requests:</b> "Show accelerometer data" → Only accelerometer sensors (IIS2DH, IIS3DWB, ISM330DHCX)</li>
+                    <li><b>Pressure Requests:</b> "Show pressure data" → Only pressure sensors (LPS22HH)</li>
+                    <li><b>Gyroscope Requests:</b> "Show gyroscope data" → Only gyroscope sensors (ISM330DHCX)</li>
+                    <li><b>Magnetometer Requests:</b> "Show magnetometer data" → Only magnetometer sensors (IIS2MDC)</li>
+                    <li><b>Microphone Requests:</b> "Show microphone data" → Only microphone sensors (IMP23ABSU, IMP34DT05)</li>
+                </ul>
+
+                <h3>Line Graph Features</h3>
+                <ul>
+                    <li><b>Multi-Class Comparison:</b> Shows OK vs KO_HIGH_2mm vs KO_LOW_2mm vs KO_LOW_4mm</li>
+                    <li><b>Sensor-Specific Data:</b> Only displays data from the requested sensor type</li>
+                    <li><b>Statistical Accuracy:</b> Uses actual CSV data with proper statistical measures</li>
+                    <li><b>Interactive Display:</b> Plots appear directly in the chat interface</li>
+                </ul>
+
                 <h2>📊 Statistical Analysis Requests</h2>
                 <h3>Basic Statistics</h3>
                 <ul>
@@ -85,44 +114,43 @@ class HelpView(QWidget):
                 </ul>
 
                 <h2>📈 Visualization Requests</h2>
-                <h3>Statistical Plots</h3>
+                <h3>Line Graphs (Default)</h3>
                 <ul>
-                    <li><b>"Create a boxplot of temperature by class"</b> - Multi-class comparison visualization</li>
-                    <li><b>"Show me a histogram of humidity data"</b> - Distribution analysis across all classes</li>
-                    <li><b>"Generate a scatter plot of temperature vs humidity"</b> - Feature relationships</li>
-                    <li><b>"Display correlation matrix between sensors"</b> - Feature associations</li>
-                    <li><b>"Create a violin plot for pressure sensor"</b> - Detailed distribution comparison</li>
+                    <li><b>"Generate a plot of accelerometer data"</b> - Creates line graph of all accelerometer sensors</li>
+                    <li><b>"Show me humidity data"</b> - Creates line graph of humidity sensor data</li>
+                    <li><b>"Create a line graph of temperature data"</b> - Creates line graph of all temperature sensors</li>
+                    <li><b>"Display pressure data"</b> - Creates line graph of pressure sensor data</li>
+                    <li><b>"Show gyroscope data"</b> - Creates line graph of gyroscope sensor data</li>
                 </ul>
 
-                <h3>Advanced Visualizations</h3>
+                <h3>Other Plot Types</h3>
                 <ul>
-                    <li><b>"Show me time series analysis of pressure data"</b> - Temporal patterns by class</li>
-                    <li><b>"Generate frequency spectrum of vibration data"</b> - Signal analysis comparison</li>
-                    <li><b>"Create a heatmap of feature correlations"</b> - Correlation visualization</li>
-                    <li><b>"Plot feature importance ranking"</b> - Feature selection visualization</li>
-                    <li><b>"Show dataset overview"</b> - Comprehensive data summary</li>
+                    <li><b>"Create a histogram of humidity data"</b> - Distribution analysis across all classes</li>
+                    <li><b>"Generate a scatter plot of temperature vs humidity"</b> - Feature relationships</li>
+                    <li><b>"Display correlation matrix between sensors"</b> - Feature associations</li>
+                    <li><b>"Show frequency domain analysis"</b> - FFT analysis for signal processing</li>
                 </ul>
 
                 <h2>🔬 Sensor-Specific Analysis</h2>
                 <h3>Temperature & Environmental</h3>
                 <ul>
-                    <li><b>"Analyze temperature sensor patterns"</b> - Temperature analysis</li>
-                    <li><b>"Show humidity sensor distribution"</b> - Humidity analysis</li>
-                    <li><b>"Compare pressure readings between classes"</b> - Pressure analysis</li>
+                    <li><b>"Analyze temperature sensor patterns"</b> - Temperature analysis with line graphs</li>
+                    <li><b>"Show humidity sensor distribution"</b> - Humidity analysis with line graphs</li>
+                    <li><b>"Compare pressure readings between classes"</b> - Pressure analysis with line graphs</li>
                 </ul>
 
                 <h3>Motion & Vibration</h3>
                 <ul>
-                    <li><b>"Show me accelerometer sensor patterns"</b> - Acceleration analysis</li>
-                    <li><b>"Analyze gyroscope data"</b> - Rotation analysis</li>
-                    <li><b>"Display magnetometer readings"</b> - Magnetic field analysis</li>
-                    <li><b>"Show frequency spectrum of vibration data"</b> - Vibration analysis</li>
+                    <li><b>"Show me accelerometer sensor patterns"</b> - Acceleration analysis with line graphs</li>
+                    <li><b>"Analyze gyroscope data"</b> - Rotation analysis with line graphs</li>
+                    <li><b>"Display magnetometer readings"</b> - Magnetic field analysis with line graphs</li>
+                    <li><b>"Show frequency spectrum of vibration data"</b> - Vibration analysis with FFT</li>
                 </ul>
 
                 <h3>Audio & Signal</h3>
                 <ul>
-                    <li><b>"Analyze microphone frequency data"</b> - Audio signal analysis</b></li>
-                    <li><b>"Show me microphone signal patterns"</b> - Audio pattern analysis</li>
+                    <li><b>"Analyze microphone frequency data"</b> - Audio signal analysis with FFT</li>
+                    <li><b>"Show me microphone signal patterns"</b> - Audio pattern analysis with line graphs</li>
                 </ul>
 
                 <h2>📋 Class Comparison & Classification</h2>
@@ -164,7 +192,7 @@ class HelpView(QWidget):
                         <li><b>Be Specific:</b> "Show me temperature data for OK samples" vs "Show me data"</li>
                         <li><b>Use Natural Language:</b> "What's the average humidity?" works just as well as "Get mean humidity"</li>
                         <li><b>Ask for Comparisons:</b> "Compare OK vs KO" or "Show differences between classes"</li>
-                        <li><b>Request Visualizations:</b> "Create a boxplot" or "Show me a histogram"</li>
+                        <li><b>Request Visualizations:</b> "Create a line graph" or "Show me a histogram"</li>
                         <li><b>Ask for Insights:</b> "What patterns do you see?" or "What's interesting about this data?"</li>
                     </ul>
                 </div>
@@ -193,7 +221,43 @@ class HelpView(QWidget):
                     </ul>
                 </div>
 
+                <h2>🔧 Line Graph Troubleshooting</h2>
+                <div>
+                    <h4>Default Behavior:</h4>
+                    <ul>
+                        <li><b>🕒 Line Graphs are Default:</b> Simple requests like "Create a plot" or "Show me data" now generate line graphs</li>
+                        <li><b>📊 Other Plot Types:</b> Explicitly request "histogram", "scatter plot", or "frequency analysis" for different visualizations</li>
+                        <li><b>🎯 Smart Detection:</b> The system automatically detects sensor types and creates precise visualizations</li>
+                    </ul>
+                    
+                    <h4>Common Issues & Solutions:</h4>
+                    <ul>
+                        <li><b>Line Graph Not Showing:</b> Try "Generate a plot of [sensor] data" or "Show me [sensor] data"</li>
+                        <li><b>Want Different Plot Type:</b> Explicitly say "Create a histogram" or "Show scatter plot"</li>
+                        <li><b>Wrong Sensor Data:</b> Be specific: "Show me temperature data" not just "Show me data"</li>
+                        <li><b>Class Comparison:</b> Add "between classes" to compare patterns across OK/KO groups</li>
+                        <li><b>Frequency Analysis:</b> Use "Show frequency domain analysis" for FFT plots</li>
+                    </ul>
+                    
+                    <h4>Best Practices:</h4>
+                    <ul>
+                        <li><b>For Motion Analysis:</b> Use "Show accelerometer data" for line graphs, "frequency analysis" for FFT</li>
+                        <li><b>For Environmental Monitoring:</b> Use "Show temperature data" for line graphs</li>
+                        <li><b>For Audio Analysis:</b> Use "Show microphone data" for line graphs, "frequency analysis" for FFT</li>
+                        <li><b>For Pattern Detection:</b> Combine both line graphs and frequency analysis</li>
+                    </ul>
+                </div>
+
                 <h2>🎯 Smart Response System</h2>
+                <h3>🕒 Line Graphs as Default</h3>
+                <p><b>NEW:</b> Line graphs are now the default visualization! The system automatically generates line graphs for most requests unless you specify otherwise:</p>
+                <ul>
+                    <li><b>Default Behavior:</b> "Create a plot" → Line graph</li>
+                    <li><b>Smart Detection:</b> "Show me the data" → Line graph</li>
+                    <li><b>Sensor Analysis:</b> "Analyze temperature" → Line graph</li>
+                    <li><b>Override Default:</b> "Create a histogram" → Histogram (explicit request)</li>
+                </ul>
+
                 <h3>Automatic Response Type Detection</h3>
                 <p>The system automatically detects whether you want a text response or visual response based on your request:</p>
                 
@@ -206,7 +270,7 @@ class HelpView(QWidget):
                 
                 <h4>📊 Visual Responses (With Plots)</h4>
                 <ul>
-                    <li><b>Plot Requests:</b> "Create a boxplot", "Show me a histogram", "Generate a scatter plot"</li>
+                    <li><b>Plot Requests:</b> "Create a line graph", "Show me a histogram", "Generate a scatter plot"</li>
                     <li><b>Visual Commands:</b> "Plot the data", "Display the chart", "Visualize the results"</li>
                     <li><b>Chart Generation:</b> "Make a graph", "Draw a plot", "Show the visualization"</li>
                 </ul>
@@ -217,6 +281,27 @@ class HelpView(QWidget):
                     <li><b>Top Features:</b> Always text (informational)</li>
                     <li><b>Comparisons:</b> Text with comparison plot suggestions</li>
                     <li><b>Analysis:</b> Text with relevant visualization options</li>
+                </ul>
+
+                <h2>🔍 NEW: Advanced Sensor Detection</h2>
+                <h3>Precise Sensor Mapping</h3>
+                <p>The app now uses exact sensor-to-feature mapping for accurate data selection:</p>
+                <ul>
+                    <li><b>Temperature Sensors:</b> HTS221_TEMP_TEMP_mean, LPS22HH_TEMP_TEMP_mean, STTS751_TEMP_TEMP_mean</li>
+                    <li><b>Humidity Sensors:</b> HTS221_HUM_HUM_mean</li>
+                    <li><b>Pressure Sensors:</b> LPS22HH_PRESS_PRESS_mean</li>
+                    <li><b>Accelerometer Sensors:</b> IIS2DH_ACC_A_x/y/z_mean, IIS3DWB_ACC_A_x/y/z_mean, ISM330DHCX_ACC_A_x/y/z_mean</li>
+                    <li><b>Gyroscope Sensors:</b> ISM330DHCX_GYRO_G_x/y/z_mean</li>
+                    <li><b>Magnetometer Sensors:</b> IIS2MDC_MAG_M_x/y/z_mean</li>
+                    <li><b>Microphone Sensors:</b> IMP23ABSU_MIC_MIC_mean, IMP34DT05_MIC_MIC_mean</li>
+                </ul>
+
+                <h3>Smart Feature Filtering</h3>
+                <ul>
+                    <li><b>Exact Matching:</b> Only shows features for the requested sensor type</li>
+                    <li><b>No Cross-Contamination:</b> Temperature requests won't show accelerometer data</li>
+                    <li><b>Multi-Axis Support:</b> Accelerometer requests show X, Y, Z axes together</li>
+                    <li><b>Statistical Measures:</b> All features use proper statistical calculations (mean, std, etc.)</li>
                 </ul>
             </div>
             """

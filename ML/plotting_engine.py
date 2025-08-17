@@ -58,33 +58,62 @@ class PlottingEngine:
         
         # Define feature categories for better organization
         self.feature_categories = {
-            'Environmental': ['temperature_mean', 'humidity_mean', 'pressure_mean'],
-            'Motion': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
-            'Rotation': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
-            'Audio': ['microphone_mean']
+            'Environmental': ['HTS221_TEMP_TEMP_mean', 'LPS22HH_TEMP_TEMP_mean', 'STTS751_TEMP_TEMP_mean', 
+                             'HTS221_HUM_HUM_mean', 'LPS22HH_PRESS_PRESS_mean'],
+            'Motion': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean',
+                      'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                      'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            'Rotation': ['ISM330DHCX_GYRO_G_x_mean', 'ISM330DHCX_GYRO_G_y_mean', 'ISM330DHCX_GYRO_G_z_mean'],
+            'Magnetic': ['IIS2MDC_MAG_M_x_mean', 'IIS2MDC_MAG_M_y_mean', 'IIS2MDC_MAG_M_z_mean'],
+            'Audio': ['IMP23ABSU_MIC_MIC_mean', 'IMP34DT05_MIC_MIC_mean']
         }
     
     def get_sensor_features(self, sensor_name: str) -> List[str]:
         """Get all features for a specific sensor with better matching"""
         sensor_name_lower = sensor_name.lower()
         
-        # Enhanced sensor matching
+        # Enhanced sensor matching for actual dataset features
         sensor_mapping = {
-            'temperature': ['temperature_mean'],
-            'temp': ['temperature_mean'],
-            'humidity': ['humidity_mean'],
-            'hum': ['humidity_mean'],
-            'pressure': ['pressure_mean'],
-            'press': ['pressure_mean'],
-            'accelerometer': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
-            'acceleration': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
-            'acc': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
-            'gyroscope': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
-            'gyro': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean'],
-            'microphone': ['microphone_mean'],
-            'mic': ['microphone_mean'],
-            'motion': ['acceleration_x_mean', 'acceleration_y_mean', 'acceleration_z_mean'],
-            'rotation': ['gyroscope_x_mean', 'gyroscope_y_mean', 'gyroscope_z_mean']
+            # Temperature sensors
+            'temperature': ['HTS221_TEMP_TEMP_mean', 'LPS22HH_TEMP_TEMP_mean', 'STTS751_TEMP_TEMP_mean'],
+            'temp': ['HTS221_TEMP_TEMP_mean', 'LPS22HH_TEMP_TEMP_mean', 'STTS751_TEMP_TEMP_mean'],
+            
+            # Humidity sensors
+            'humidity': ['HTS221_HUM_HUM_mean'],
+            'hum': ['HTS221_HUM_HUM_mean'],
+            
+            # Pressure sensors
+            'pressure': ['LPS22HH_PRESS_PRESS_mean'],
+            'press': ['LPS22HH_PRESS_PRESS_mean'],
+            
+            # Accelerometer sensors
+            'accelerometer': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean', 
+                             'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                             'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            'acceleration': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean', 
+                            'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                            'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            'acc': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean', 
+                    'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                    'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            
+            # Gyroscope sensors
+            'gyroscope': ['ISM330DHCX_GYRO_G_x_mean', 'ISM330DHCX_GYRO_G_y_mean', 'ISM330DHCX_GYRO_G_z_mean'],
+            'gyro': ['ISM330DHCX_GYRO_G_x_mean', 'ISM330DHCX_GYRO_G_y_mean', 'ISM330DHCX_GYRO_G_z_mean'],
+            
+            # Magnetometer sensors
+            'magnetometer': ['IIS2MDC_MAG_M_x_mean', 'IIS2MDC_MAG_M_y_mean', 'IIS2MDC_MAG_M_z_mean'],
+            'mag': ['IIS2MDC_MAG_M_x_mean', 'IIS2MDC_MAG_M_y_mean', 'IIS2MDC_MAG_M_z_mean'],
+            
+            # Microphone sensors
+            'microphone': ['IMP23ABSU_MIC_MIC_mean', 'IMP34DT05_MIC_MIC_mean'],
+            'mic': ['IMP23ABSU_MIC_MIC_mean', 'IMP34DT05_MIC_MIC_mean'],
+            
+            # Motion and rotation (aliases)
+            'motion': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean', 
+                      'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                      'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            'rotation': ['ISM330DHCX_GYRO_G_x_mean', 'ISM330DHCX_GYRO_G_y_mean', 'ISM330DHCX_GYRO_G_z_mean']
         }
         
         # Direct mapping
@@ -96,9 +125,17 @@ class PlottingEngine:
             if sensor_name_lower in key or key in sensor_name_lower:
                 return features
         
-        # Fallback: search in feature names
+        # Fallback: search in feature names for partial matches
         sensor_features = [col for col in self.feature_columns 
                           if sensor_name_lower in col.lower()]
+        
+        # If still no matches, try to find features that contain the sensor name
+        if not sensor_features:
+            for col in self.feature_columns:
+                if any(sensor in col.lower() for sensor in ['temp', 'hum', 'press', 'acc', 'gyro', 'mag', 'mic']):
+                    if sensor_name_lower in col.lower():
+                        sensor_features.append(col)
+        
         return sensor_features
     
     def clean_feature_name(self, feature_name: str) -> str:
@@ -123,7 +160,7 @@ class PlottingEngine:
         
         # Initialize result
         result = {
-            'plot_type': 'boxplot',  # default
+            'plot_type': 'timeseries',  # Changed default to timeseries
             'features': [],
             'sensor': None,
             'statistic': None,
@@ -131,32 +168,71 @@ class PlottingEngine:
             'use_all_classes': True  # Use 4 classes instead of binary
         }
         
-        # Detect plot types
-        if any(word in request for word in ['histogram', 'hist', 'distribution']):
+        # Detect plot types - prioritize time series and frequency analysis
+        print(f"🔍 Detecting plot type from request: {request}")
+        
+        if any(word in request for word in ['time series', 'time', 'temporal', 'trend', 'over time']):
+            result['plot_type'] = 'timeseries'
+            print(f"✅ Detected plot type: timeseries")
+        elif any(word in request for word in ['frequency', 'fft', 'spectrum', 'oscillation', 'vibration']):
+            result['plot_type'] = 'frequency'
+            print(f"✅ Detected plot type: frequency")
+        elif any(word in request for word in ['histogram', 'hist', 'distribution']):
             result['plot_type'] = 'histogram'
-        elif any(word in request for word in ['boxplot', 'box', 'compare']):
-            result['plot_type'] = 'boxplot'
+            print(f"✅ Detected plot type: histogram")
         elif any(word in request for word in ['correlation', 'corr', 'relationship']):
             result['plot_type'] = 'correlation'
-        elif any(word in request for word in ['time series', 'time', 'temporal']):
-            result['plot_type'] = 'timeseries'
-        elif any(word in request for word in ['frequency', 'fft', 'spectrum']):
-            result['plot_type'] = 'frequency'
+            print(f"✅ Detected plot type: correlation")
         elif any(word in request for word in ['scatter', 'scatter plot']):
-            result['plot_type'] = 'scatter'
-        elif any(word in request for word in ['violin', 'violin plot']):
-            result['plot_type'] = 'violin'
+            result['plot_type'] = 'timeseries'
+            print(f"✅ Detected plot type: scatter")
+        else:
+            print(f"ℹ️ Using default plot type: {result['plot_type']}")
         
         # Detect sensors
         sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'temperature', 
                   'pressure', 'humidity', 'microphone', 'acc', 'gyro', 'mag', 
                   'temp', 'press', 'hum', 'mic', 'motion', 'rotation']
         
+        print(f"🔍 Looking for sensors in request: {request}")
         for sensor in sensors:
             if sensor in request:
+                print(f"✅ Found sensor: {sensor}")
                 result['sensor'] = sensor
                 result['features'] = self.get_sensor_features(sensor)
+                print(f"📊 Features found: {result['features']}")
                 break
+        
+        # If no sensor detected, try to find specific sensor names in the request
+        if not result['features']:
+            print(f"🔍 No generic sensor found, looking for specific sensor names...")
+            for col in self.feature_columns:
+                if any(sensor_type in col.lower() for sensor_type in ['temp', 'hum', 'press', 'acc', 'gyro', 'mag', 'mic']):
+                    if any(word in col.lower() for word in request.split()):
+                        print(f"✅ Found specific sensor feature: {col}")
+                        result['features'].append(col)
+                        if not result['sensor']:
+                            # Determine sensor type from feature name
+                            if 'temp' in col.lower():
+                                result['sensor'] = 'temperature'
+                            elif 'hum' in col.lower():
+                                result['sensor'] = 'humidity'
+                            elif 'press' in col.lower():
+                                result['sensor'] = 'pressure'
+                            elif 'acc' in col.lower():
+                                result['sensor'] = 'accelerometer'
+                            elif 'gyro' in col.lower():
+                                result['sensor'] = 'gyroscope'
+                            elif 'mag' in col.lower():
+                                result['sensor'] = 'magnetometer'
+                            elif 'mic' in col.lower():
+                                result['sensor'] = 'microphone'
+        
+        # Final fallback: if still no features and temperature was requested, use temperature features
+        if not result['features'] and ('temperature' in request.lower() or 'temp' in request.lower()):
+            print(f"🔄 Fallback: Using default temperature features")
+            result['features'] = ['HTS221_TEMP_TEMP_mean', 'LPS22HH_TEMP_TEMP_mean', 'STTS751_TEMP_TEMP_mean']
+            result['sensor'] = 'temperature'
         
         # Detect statistics
         stats = ['mean', 'median', 'max', 'min', 'std', 'variance', 'var']
@@ -176,9 +252,23 @@ class PlottingEngine:
                     result['features'] = matching_features[:5]  # Limit to 5 features
                     break
         
+        # Final fallback: if still no features, use top discriminative features
+        if not result['features']:
+            print(f"🔄 Final fallback: Using top discriminative features")
+            result['features'] = self.get_top_discriminative_features(3)
+        
+        # Auto-detect plot type based on sensor type if no specific plot type requested
+        if result['plot_type'] == 'timeseries' and result['sensor']:
+            # For motion sensors, frequency plots might be more appropriate
+            motion_sensors = ['accelerometer', 'acc', 'gyroscope', 'gyro', 'motion', 'rotation']
+            if any(motion in result['sensor'] for motion in motion_sensors):
+                # Suggest frequency plots for motion sensors, but keep time series as default
+                pass  # Keep time series as default for now
+        
+        print(f"🎯 Final parsed result: {result}")
         return result
     
-    def plot_feature_comparison(self, features: List[str], plot_type: str = 'boxplot') -> plt.Figure:
+    def plot_feature_comparison(self, features: List[str], plot_type: str = 'histogram') -> plt.Figure:
         """Generate comparison plots between all classes for specific features"""
         
         if not features:
@@ -197,8 +287,8 @@ class PlottingEngine:
                 
             ax = axes[i]
             
-            if plot_type == 'boxplot':
-                # Boxplot comparison for all classes
+            if plot_type == 'histogram':
+                # Histogram comparison for all classes
                 data_to_plot = []
                 labels = []
                 
@@ -209,18 +299,18 @@ class PlottingEngine:
                         labels.append(class_name)
                 
                 if data_to_plot:
-                    box_plot = ax.boxplot(data_to_plot, labels=labels, patch_artist=True)
+                    histogram = ax.hist(data_to_plot, labels=labels, patch_artist=True)
                     
                     # Color the boxes
-                    for j, box in enumerate(box_plot['boxes']):
+                    for j, box in enumerate(histogram['boxes']):
                         class_name = labels[j]
                         box.set_facecolor(self.class_colors.get(class_name, 'lightgray'))
-                        box.set_alpha(0.7)
+                        histogram.set_alpha(0.7)
                     
                     # Color the whiskers and medians
                     for element in ['whiskers', 'fliers', 'means', 'medians']:
-                        if element in box_plot:
-                            plt.setp(box_plot[element], color='black')
+                        if element in histogram:
+                            plt.setp(histogram[element], color='black')
                 
             elif plot_type == 'histogram':
                 # Histogram overlay for all classes
@@ -232,8 +322,8 @@ class PlottingEngine:
                                density=True, edgecolor='black', linewidth=0.5)
                 ax.legend()
             
-            elif plot_type == 'violin':
-                # Violin plot for all classes
+            elif plot_type == 'scatter':
+                # Scatter plot for all classes
                 data_to_plot = []
                 labels = []
                 
@@ -244,13 +334,13 @@ class PlottingEngine:
                         labels.append(class_name)
                 
                 if data_to_plot:
-                    violin_parts = ax.violinplot(data_to_plot, positions=range(len(labels)))
+                    scatter_parts = ax.scatter(data_to_plot, positions=range(len(labels)))
                     
                     # Color the violins
-                    for j, pc in enumerate(violin_parts['bodies']):
+                    for j, pc in enumerate(scatter_parts['bodies']):
                         class_name = labels[j]
                         pc.set_facecolor(self.class_colors.get(class_name, 'lightgray'))
-                        pc.set_alpha(0.7)
+                        scatter_parts.set_alpha(0.7)
                     
                     ax.set_xticks(range(len(labels)))
                     ax.set_xticklabels(labels, rotation=45)
@@ -263,7 +353,7 @@ class PlottingEngine:
             ax.grid(True, alpha=0.3)
             
             # Rotate x-axis labels for better readability
-            if plot_type in ['boxplot', 'violin']:
+            if plot_type in ['histogram', 'scatter']:
                 ax.tick_params(axis='x', rotation=45)
         
         # Hide empty subplots
@@ -605,18 +695,18 @@ def test_plotting_engine():
     """Test the plotting engine with example requests"""
     
     # Initialize with mock data
-    engine = PlottingEngine('core/mock_data.csv')
+    engine = PlottingEngine('ML/feature_matrix2.csv')
     
     # Test different types of requests
     test_requests = [
-        "Show boxplot comparison of accelerometer features",
+        "Show histogram comparison of accelerometer features",
         "Plot histogram of temperature sensor",
         "Generate correlation matrix",
         "Show time series for top features", 
         "Create frequency domain plot",
         "Plot scatter analysis",
         "Compare gyroscope mean values between classes",
-        "Create violin plot for pressure sensor"
+        "Create scatter plot for pressure sensor"
     ]
     
     print("🧪 Testing Plotting Engine with various requests:")

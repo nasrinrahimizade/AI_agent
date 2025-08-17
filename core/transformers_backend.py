@@ -182,7 +182,7 @@ class Chatbot:
         
         # Enhanced intent detection with confidence scoring for data-related questions
         intent_keywords = {
-            'visualization': ['plot', 'show', 'display', 'visualize', 'chart', 'graph', 'draw', 'create', 'histogram', 'boxplot', 'scatter', 'correlation', 'time series'],
+            'visualization': ['plot', 'show', 'display', 'visualize', 'chart', 'graph', 'draw', 'create', 'histogram', 'line graph', 'scatter', 'correlation', 'time series'],
             'analysis': ['analyze', 'compare', 'difference', 'statistics', 'mean', 'std', 'correlation', 'pattern'],
             'help': ['help', 'explain', 'what is', 'how to', 'why', 'when'],
             'exploration': ['explore', 'investigate', 'find', 'discover', 'look for'],
@@ -201,7 +201,7 @@ class Chatbot:
                 if intent == 'visualization':
                     analysis['plot_request'] = True
                     # Check for specific plot types
-                    specific_plots = ['histogram', 'boxplot', 'scatter', 'correlation', 'time series', 'line', 'bar']
+                    specific_plots = ['histogram', 'line graph', 'scatter', 'correlation', 'time series', 'line', 'bar']
                     if any(plot in text_lower for plot in specific_plots):
                         analysis['specific_plot_type'] = True
                 elif intent == 'analysis':
@@ -407,12 +407,44 @@ class Chatbot:
                         response = response_data['main_response']
                         plot_suggestion = response_data.get('plot_suggestion')
                         if plot_suggestion:
+                            # Ensure the response accurately reflects the plot type being created
+                            if plot_suggestion == 'line_graph':
+                                response = "📈 Creating line graph..."  # Always accurate for line graphs
+                            elif plot_suggestion == 'histogram':
+                                response = "📊 Creating histogram..."  # Always accurate for histograms
+                            elif plot_suggestion == 'scatter':
+                                response = "💫 Creating scatter plot..."  # Always accurate for scatter plots
+                            elif plot_suggestion == 'correlation':
+                                response = "🔗 Creating correlation matrix..."  # Always accurate for correlation
+                            elif plot_suggestion == 'timeseries':
+                                response = "🕒 Creating time series plot..."  # Always accurate for time series
+                            elif plot_suggestion == 'frequency':
+                                response = "📡 Creating frequency domain plot..."  # Always accurate for frequency
+                            else:
+                                response = f"📊 Creating {plot_suggestion}..."  # Generic fallback
+                            
                             response += f" [TRIGGER_PLOT:{plot_suggestion}]"
                     else:
                         # Auto mode - check if plot is suggested
                         response = response_data['main_response']
                         plot_suggestion = response_data.get('plot_suggestion')
                         if plot_suggestion:
+                            # Ensure the response accurately reflects the plot type being created
+                            if plot_suggestion == 'line_graph':
+                                response = "📈 Creating line graph..."  # Always accurate for line graphs
+                            elif plot_suggestion == 'histogram':
+                                response = "📊 Creating histogram..."  # Always accurate for histograms
+                            elif plot_suggestion == 'scatter':
+                                response = "💫 Creating scatter plot..."  # Always accurate for scatter plots
+                            elif plot_suggestion == 'correlation':
+                                response = "🔗 Creating correlation matrix..."  # Always accurate for correlation
+                            elif plot_suggestion == 'timeseries':
+                                response = "🕒 Creating time series plot..."  # Always accurate for time series
+                            elif plot_suggestion == 'frequency':
+                                response = "📡 Creating frequency domain plot..."  # Always accurate for frequency
+                            else:
+                                response = f"📊 Creating {plot_suggestion}..."  # Generic fallback
+                            
                             response += f" [TRIGGER_PLOT:{plot_suggestion}]"
                     
                     # Update conversation context and return
@@ -581,8 +613,8 @@ class Chatbot:
         reply = self._clean_response(reply)
         reply = self._enhance_response_quality(reply, user_input, analysis)
         
-        # Stop at any new speaker label
-        reply = re.split(r"(?i)\b(?:User|System|Developer|AI):", reply)[0].strip()
+        # Stop at any new speaker label (including USER : with space)
+        reply = re.split(r"(?i)\b(?:User|System|Developer|AI|USER)\s*:", reply)[0].strip()
 
         # 11) Update response metrics and learn from interaction
         response_time = time.time() - start_time

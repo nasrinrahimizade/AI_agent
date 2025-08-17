@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QEvent, QSize
 from datetime import datetime
 import re
 from core.transformers_backend import Chatbot
-from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_boxplot_accelerometer, \
+from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_line_graph_accelerometer, \
                            prepare_temperature_histogram, prepare_correlation_matrix, \
                            prepare_time_series_analysis, prepare_frequency_domain_plot, \
                            prepare_scatter_plot_features
@@ -31,7 +31,7 @@ class ChatView(QWidget):
         
         # Plot request mapping for backward compatibility
         self.plot_mapping = {
-            'boxplot': prepare_boxplot_accelerometer,
+            'line graph': prepare_line_graph_accelerometer,
             'histogram': prepare_temperature_histogram,
             'correlation': prepare_correlation_matrix,
             'time series': prepare_time_series_analysis,
@@ -43,7 +43,7 @@ class ChatView(QWidget):
         # Strict allowlist of plot-triggering phrases (lowercase, punctuation-insensitive)
         self.allowed_plot_requests_specific = {
             # Basic plot requests routed to specific plot functions
-            'show me a boxplot': 'boxplot',
+            'show me a line graph': 'line graph',
             'create a histogram': 'histogram',
             'display correlation matrix': 'correlation',
             'generate time series analysis': 'time series',
@@ -58,6 +58,17 @@ class ChatView(QWidget):
             'analyze temperature sensors',
             'compare pressure readings',
             'display humidity distribution',
+            'generate a plot of accelerometer data',
+            'show me humidity data',
+            'create a line graph of temperature data',
+            'analyze accelerometer data',
+            'show temperature data',
+            'display pressure data',
+            'create humidity plot',
+            'generate accelerometer plot',
+            'show me temperature sensors',
+            'analyze humidity sensors',
+            'compare accelerometer readings',
             # Advanced
             'show me the most discriminative features',
             'create a comparison between ok and ko conditions',
@@ -241,7 +252,45 @@ class ChatView(QWidget):
         if normalized_user in self.allowed_plot_requests_engine:
             return self.trigger_natural_plot_request(user_message)
         
+        # NEW: Detect natural language plot requests that weren't caught by allowlists
+        if self._is_natural_plot_request(user_lower):
+            return self.trigger_natural_plot_request(user_message)
+        
         return None
+
+    def _is_natural_plot_request(self, user_message: str) -> bool:
+        """Detect if a user message is a natural language plot request"""
+        user_lower = user_message.lower()
+        
+        # Action verbs indicating intent to produce something
+        action_keywords = ['show', 'display', 'plot', 'visualize', 'create', 'generate', 'draw', 'render', 'make']
+        
+        # Sensor-related keywords
+        sensor_keywords = ['temperature', 'temp', 'humidity', 'hum', 'pressure', 'press', 'accelerometer', 'acc', 
+                          'gyroscope', 'gyro', 'magnetometer', 'mag', 'microphone', 'mic', 'sensor', 'data']
+        
+        # Plot-related keywords
+        plot_keywords = ['plot', 'chart', 'graph', 'visualization', 'line', 'histogram', 'correlation', 'scatter', 
+                        'time series', 'frequency', 'fft', 'spectrum', 'distribution', 'comparison', 'matrix']
+        
+        # Check if message contains action intent
+        has_action = any(keyword in user_lower for keyword in action_keywords)
+        
+        # Check if message contains sensor or plot keywords
+        has_sensor_or_plot = any(keyword in user_lower for keyword in sensor_keywords + plot_keywords)
+        
+        # Additional check for specific patterns
+        specific_patterns = [
+            'generate a plot',
+            'show me',
+            'create a',
+            'display',
+            'analyze',
+            'compare'
+        ]
+        has_specific_pattern = any(pattern in user_lower for pattern in specific_patterns)
+        
+        return (has_action and has_sensor_or_plot) or has_specific_pattern
 
     def _detect_natural_plot_request(self, user_message: str, ai_response: str) -> str:
         """Detect natural language plot requests"""
@@ -251,8 +300,7 @@ class ChatView(QWidget):
         action_keywords = ['show', 'display', 'plot', 'visualize', 'create', 'generate', 'draw', 'render']
         # Plot-related nouns/types
         noun_keywords = [
-            'plot', 'chart', 'graph', 'visualization',
-            'boxplot', 'histogram', 'correlation', 'scatter', 'time series',
+            'plot', 'chart', 'graph', 'visualization', 'histogram', 'correlation', 'scatter', 'time series',
             'frequency', 'fft', 'spectrum', 'distribution', 'comparison', 'matrix'
         ]
 
@@ -289,8 +337,8 @@ class ChatView(QWidget):
         if not has_intent:
             return None
 
-        if any(word in response_lower for word in ['boxplot', 'accelerometer', 'acceleration']):
-            return 'boxplot'
+        if any(word in response_lower for word in ['line graph', 'accelerometer', 'acceleration']):
+            return 'line graph'
         elif any(word in response_lower for word in ['histogram', 'distribution']):
             return 'histogram'
         elif any(word in response_lower for word in ['correlation', 'matrix', 'relationships']):
@@ -371,12 +419,12 @@ class ChatView(QWidget):
     def _handle_plot_trigger(self, plot_type: str):
         """Handle plot triggers based on plot type"""
         try:
-            if plot_type in ['histogram', 'boxplot', 'scatter', 'correlation', 'timeseries', 'line', 'bar', 'pie']:
+            if plot_type in ['histogram', 'line graph', 'scatter', 'correlation', 'timeseries', 'line', 'bar', 'pie']:
                 # Basic plot types - use existing specific plot functions
                 if plot_type == 'histogram':
                     return self.trigger_specific_plot('histogram')
-                elif plot_type == 'boxplot':
-                    return self.trigger_specific_plot('boxplot')
+                elif plot_type == 'line graph' or plot_type == 'line':
+                    return self.trigger_specific_plot('line graph')
                 elif plot_type == 'correlation':
                     return self.trigger_specific_plot('correlation')
                 elif plot_type == 'timeseries':

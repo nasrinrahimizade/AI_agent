@@ -14,13 +14,28 @@ class PlottingEngine:
     Handles natural language requests and generates appropriate visualizations
     """
     
-    def __init__(self, feature_matrix_path: str = "ML/feature_matrix.csv"):
+    def __init__(self, feature_matrix_path: str = None):
         """Initialize with your feature matrix data"""
+        # Fix path resolution - use absolute path from project root
+        if feature_matrix_path is None:
+            import os
+            # Get the project root directory (parent of 'core' directory)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+            feature_matrix_path = os.path.join(project_root, "ML", "feature_matrix2.csv")
+        
+        print(f"🔍 Initializing plotting engine with: {feature_matrix_path}")
         try:
             self.df = pd.read_csv(feature_matrix_path)
+            print(f"✅ Successfully loaded data: {self.df.shape}")
+            print(f"📊 Columns: {list(self.df.columns[:5])}...")  # Show first 5 columns
             self.prepare_data()
         except FileNotFoundError:
-            print(f"Warning: {feature_matrix_path} not found. Using fallback data.")
+            print(f"⚠️ Warning: {feature_matrix_path} not found. Using fallback data.")
+            self.df = self._create_fallback_data()
+            self.prepare_data()
+        except Exception as e:
+            print(f"❌ Error loading data: {e}")
             self.df = self._create_fallback_data()
             self.prepare_data()
         
@@ -60,11 +75,82 @@ class PlottingEngine:
         
         print(f"✅ Data prepared: {len(self.ok_data)} OK samples, {len(self.ko_data)} KO samples")
         print(f"📊 Features available: {len(self.feature_columns)} features")
+        print(f"🔍 Sample features: {self.feature_columns[:5]}")
+        
+        # Check for temperature features specifically
+        temp_features = [col for col in self.feature_columns if 'temp' in col.lower()]
+        print(f"🌡️ Temperature features found: {temp_features}")
+    
+    def _is_feature_for_sensor(self, feature: str, sensor_type: str) -> bool:
+        """Check if a feature belongs to a specific sensor type"""
+        feature_lower = feature.lower()
+        sensor_type_lower = sensor_type.lower()
+        
+        print(f"🔍 _is_feature_for_sensor: feature='{feature}', sensor_type='{sensor_type}'")
+        
+        # Precise sensor mapping
+        sensor_mapping = {
+            'temperature': ['temp'],
+            'humidity': ['hum'],
+            'pressure': ['press'],
+            'accelerometer': ['acc'],
+            'gyroscope': ['gyro'],
+            'magnetometer': ['mag'],
+            'microphone': ['mic']
+        }
+        
+        if sensor_type_lower in sensor_mapping:
+            keywords = sensor_mapping[sensor_type_lower]
+            print(f"🔍 Checking keywords {keywords} for sensor type '{sensor_type_lower}'")
+            for keyword in keywords:
+                if keyword in feature_lower:
+                    print(f"🔍 Keyword '{keyword}' found in feature '{feature_lower}' - MATCH!")
+                    return True
+                else:
+                    print(f"🔍 Keyword '{keyword}' NOT found in feature '{feature_lower}'")
+            print(f"🔍 No keywords matched for sensor type '{sensor_type_lower}'")
+            return False
+        
+        print(f"🔍 Sensor type '{sensor_type_lower}' not in mapping, checking direct substring")
+        result = sensor_type_lower in feature_lower
+        print(f"🔍 Direct substring check: '{sensor_type_lower}' in '{feature_lower}' = {result}")
+        return result
     
     def get_sensor_features(self, sensor_name: str) -> List[str]:
-        """Get all features for a specific sensor"""
+        """Get all features for a specific sensor with precise matching"""
+        sensor_name_lower = sensor_name.lower()
+        print(f"🔍 get_sensor_features called with: '{sensor_name}' (lowercase: '{sensor_name_lower}')")
+        print(f"🔍 Available feature columns: {len(self.feature_columns)} features")
+        print(f"🔍 Sample features: {self.feature_columns[:5]}")
+        
+        # Precise sensor mapping to actual column names
+        sensor_mapping = {
+            'temperature': ['HTS221_TEMP_TEMP_mean', 'LPS22HH_TEMP_TEMP_mean', 'STTS751_TEMP_TEMP_mean'],
+            'humidity': ['HTS221_HUM_HUM_mean'],
+            'pressure': ['LPS22HH_PRESS_PRESS_mean'],
+            'accelerometer': ['IIS2DH_ACC_A_x_mean', 'IIS2DH_ACC_A_y_mean', 'IIS2DH_ACC_A_z_mean',
+                             'IIS3DWB_ACC_A_x_mean', 'IIS3DWB_ACC_A_y_mean', 'IIS3DWB_ACC_A_z_mean',
+                             'ISM330DHCX_ACC_A_x_mean', 'ISM330DHCX_ACC_A_y_mean', 'ISM330DHCX_ACC_A_z_mean'],
+            'gyroscope': ['ISM330DHCX_GYRO_G_x_mean', 'ISM330DHCX_GYRO_G_y_mean', 'ISM330DHCX_GYRO_G_z_mean'],
+            'magnetometer': ['IIS2MDC_MAG_M_x_mean', 'IIS2MDC_MAG_M_y_mean', 'IIS2MDC_MAG_M_z_mean'],
+            'microphone': ['IMP23ABSU_MIC_MIC_mean', 'IMP34DT05_MIC_MIC_mean']
+        }
+        
+        print(f"🔍 Sensor mapping keys: {list(sensor_mapping.keys())}")
+        
+        # Return exact features for the requested sensor
+        if sensor_name_lower in sensor_mapping:
+            print(f"🔍 Found exact match for '{sensor_name_lower}' in sensor_mapping")
+            available_features = [col for col in sensor_mapping[sensor_name_lower] 
+                                if col in self.feature_columns]
+            print(f"🔍 Found {len(available_features)} features for {sensor_name}: {available_features}")
+            return available_features
+        
+        # Fallback: search for partial matches
+        print(f"🔍 No exact match, trying partial match for '{sensor_name_lower}'")
         sensor_features = [col for col in self.feature_columns 
-                          if sensor_name.lower() in col.lower()]
+                          if sensor_name_lower in col.lower()]
+        print(f"🔍 Fallback: Found {len(sensor_features)} features for {sensor_name}: {sensor_features}")
         return sensor_features
     
     def get_top_discriminative_features(self, n: int = 5) -> List[str]:
@@ -96,40 +182,87 @@ class PlottingEngine:
         Returns dict with plot_type, features, and parameters
         """
         request = request.lower()
+        print(f"🔍 Parsing plot request: '{request}'")
         
         # Initialize result
         result = {
-            'plot_type': 'boxplot',  # default
+            'plot_type': 'timeseries',  # Changed default to timeseries
             'features': [],
             'sensor': None,
             'statistic': None,
             'comparison': True  # OK vs KO comparison by default
         }
         
-        # Detect plot types
-        if any(word in request for word in ['histogram', 'hist', 'distribution']):
+        # Detect plot types - prioritize line graphs (time series) and frequency analysis
+        if any(word in request for word in ['line graph', 'line', 'time series', 'time', 'temporal', 'trend', 'over time']):
+            result['plot_type'] = 'timeseries'
+        elif any(word in request for word in ['frequency', 'fft', 'spectrum', 'oscillation', 'vibration']):
+            result['plot_type'] = 'frequency'
+        elif any(word in request for word in ['histogram', 'hist', 'distribution']):
             result['plot_type'] = 'histogram'
-        elif any(word in request for word in ['boxplot', 'box', 'compare']):
-            result['plot_type'] = 'boxplot'
         elif any(word in request for word in ['correlation', 'corr', 'relationship']):
             result['plot_type'] = 'correlation'
-        elif any(word in request for word in ['time series', 'time', 'temporal']):
-            result['plot_type'] = 'timeseries'
-        elif any(word in request for word in ['frequency', 'fft', 'spectrum']):
-            result['plot_type'] = 'frequency'
         elif any(word in request for word in ['scatter', 'scatter plot']):
             result['plot_type'] = 'scatter'
         
-        # Detect sensors
-        sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'temperature', 
-                  'pressure', 'humidity', 'microphone', 'acc', 'gyro', 'mag', 
-                  'temp', 'press', 'hum', 'mic']
+        # Detect sensors with precise matching
+        sensor_keywords = {
+            'temperature': ['temperature', 'temp', 'thermal'],
+            'humidity': ['humidity', 'hum', 'moisture'],
+            'pressure': ['pressure', 'press', 'barometric'],
+            'accelerometer': ['accelerometer', 'acc', 'acceleration', 'motion'],
+            'gyroscope': ['gyroscope', 'gyro', 'rotation', 'angular'],
+            'magnetometer': ['magnetometer', 'mag', 'magnetic', 'compass'],
+            'microphone': ['microphone', 'mic', 'audio', 'sound']
+        }
         
-        for sensor in sensors:
-            if sensor in request:
-                result['sensor'] = sensor
-                result['features'] = self.get_sensor_features(sensor)
-                break
+        print(f"🔍 Checking sensor keywords: {sensor_keywords}")
+        
+        # Find the most specific sensor match
+        best_match = None
+        best_score = 0
+        
+        for sensor_type, keywords in sensor_keywords.items():
+            for keyword in keywords:
+                if keyword in request:
+                    # Score based on keyword length (more specific = higher score)
+                    score = len(keyword)
+                    print(f"🔍 Found keyword '{keyword}' for sensor '{sensor_type}' with score {score}")
+                    if score > best_score:
+                        best_score = score
+                        best_match = sensor_type
+                        print(f"🔍 New best match: '{sensor_type}' with score {score}")
+        
+        if best_match:
+            result['sensor'] = best_match
+            print(f"🎯 Final sensor match: {best_match}")
+            result['features'] = self.get_sensor_features(best_match)
+            print(f"🎯 Detected sensor: {best_match}")
+        else:
+            print(f"⚠️ No sensor detected in request")
+        
+        # If no sensor detected, try to find specific sensor names in the request
+        if not result['features']:
+            for col in self.feature_columns:
+                if any(sensor_type in col.lower() for sensor_type in ['temp', 'hum', 'press', 'acc', 'gyro', 'mag', 'mic']):
+                    if any(word in col.lower() for word in request.split()):
+                        result['features'].append(col)
+                        if not result['sensor']:
+                            # Determine sensor type from feature name
+                            if 'temp' in col.lower():
+                                result['sensor'] = 'temperature'
+                            elif 'hum' in col.lower():
+                                result['sensor'] = 'humidity'
+                            elif 'press' in col.lower():
+                                result['sensor'] = 'pressure'
+                            elif 'acc' in col.lower():
+                                result['sensor'] = 'accelerometer'
+                            elif 'gyro' in col.lower():
+                                result['sensor'] = 'gyroscope'
+                            elif 'mag' in col.lower():
+                                result['sensor'] = 'magnetometer'
+                            elif 'mic' in col.lower():
+                                result['sensor'] = 'microphone'
         
         # Detect statistics
         stats = ['mean', 'median', 'max', 'min', 'std', 'variance', 'var']
@@ -149,10 +282,45 @@ class PlottingEngine:
                     result['features'] = matching_features[:5]  # Limit to 5 features
                     break
         
+        # Final fallback: if still no features and temperature was requested, use temperature features
+        if not result['features'] and ('temperature' in request.lower() or 'temp' in request.lower()):
+            # Look for any temperature-related features in the dataset
+            temp_features = [col for col in self.feature_columns if 'temp' in col.lower()]
+            if temp_features:
+                result['features'] = temp_features[:3]  # Use up to 3 temperature features
+                result['sensor'] = 'temperature'
+        
+        # Final fallback: if still no features, use top discriminative features
+        if not result['features']:
+            result['features'] = self.get_top_discriminative_features(3)
+        
+        # Ensure we only show features for the requested sensor type
+        if result['sensor'] and result['features']:
+            print(f"🔍 Filtering features for sensor '{result['sensor']}'")
+            print(f"🔍 Features before filtering: {result['features']}")
+            
+            # Filter features to only include the requested sensor type
+            filtered_features = []
+            for feature in result['features']:
+                if self._is_feature_for_sensor(feature, result['sensor']):
+                    filtered_features.append(feature)
+                    print(f"🔍 Feature '{feature}' matches sensor '{result['sensor']}'")
+                else:
+                    print(f"🔍 Feature '{feature}' does NOT match sensor '{result['sensor']}'")
+            
+            if filtered_features:
+                result['features'] = filtered_features
+                print(f"🎯 Filtered to {len(filtered_features)} {result['sensor']} features: {filtered_features}")
+            else:
+                print(f"⚠️ No {result['sensor']} features found, using all features")
+        else:
+            print(f"⚠️ No sensor or features to filter")
+        
+        print(f"🎯 Final parsed result: {result}")
         return result
     
-    def plot_feature_comparison(self, features: List[str], plot_type: str = 'boxplot') -> plt.Figure:
-        """Generate comparison plots between OK and KO for specific features"""
+    def plot_feature_comparison(self, features: List[str], plot_type: str = 'histogram') -> plt.Figure:
+        """Generate histogram plots between OK and KO for specific features"""
         
         if not features:
             # If no specific features, use top discriminative features
@@ -170,17 +338,8 @@ class PlottingEngine:
                 
             ax = axes[i]
             
-            if plot_type == 'boxplot':
-                # Boxplot comparison
-                data_to_plot = [
-                    self.ok_data[feature].dropna(),
-                    self.ko_data[feature].dropna()
-                ]
-                box_plot = ax.boxplot(data_to_plot, labels=['OK', 'KO'], patch_artist=True)
-                box_plot['boxes'][0].set_facecolor('lightblue')
-                box_plot['boxes'][1].set_facecolor('lightcoral')
-                
-            elif plot_type == 'histogram':
+            # Only histogram plots are supported now
+            if plot_type == 'histogram':
                 # Histogram overlay
                 ax.hist(self.ok_data[feature].dropna(), alpha=0.7, label='OK', 
                        bins=20, color='lightblue', density=True)
@@ -197,7 +356,7 @@ class PlottingEngine:
         for i in range(len(features), 6):
             axes[i].set_visible(False)
         
-        plt.suptitle(f'{plot_type.title()} Comparison: OK vs KO Classes', fontsize=16)
+        plt.suptitle(f'Histogram Comparison: OK vs KO Classes', fontsize=16)
         plt.tight_layout()
         return fig
     
@@ -349,23 +508,28 @@ class PlottingEngine:
         
         # Parse the request
         parsed = self.parse_plot_request(request)
+        print(f"🎯 Parsed request: {parsed}")
         
-        # Generate appropriate plot
-        if parsed['plot_type'] == 'boxplot':
-            return self.plot_feature_comparison(parsed['features'], 'boxplot')
-        elif parsed['plot_type'] == 'histogram':
-            return self.plot_feature_comparison(parsed['features'], 'histogram')
-        elif parsed['plot_type'] == 'correlation':
-            return self.plot_correlation_matrix(parsed['features'])
-        elif parsed['plot_type'] == 'timeseries':
+        # Generate appropriate plot - all plots are now line graphs or specialized visualizations
+        if parsed['plot_type'] == 'timeseries':
+            print(f"📈 Generating line graph (time series)")
             return self.plot_time_series(parsed['features'])
         elif parsed['plot_type'] == 'frequency':
+            print(f"📡 Generating frequency domain plot")
             return self.plot_frequency_domain(parsed['features'])
+        elif parsed['plot_type'] == 'histogram':
+            print(f"📊 Generating histogram plot")
+            return self.plot_feature_comparison(parsed['features'], 'histogram')
+        elif parsed['plot_type'] == 'correlation':
+            print(f"🔗 Generating correlation matrix")
+            return self.plot_correlation_matrix(parsed['features'])
         elif parsed['plot_type'] == 'scatter':
+            print(f"💫 Generating scatter plot")
             return self.plot_scatter(parsed['features'])
         else:
-            # Default to boxplot
-            return self.plot_feature_comparison(parsed['features'], 'boxplot')
+            # Default to line graph (time series)
+            print(f"🔄 Defaulting to line graph (time series)")
+            return self.plot_time_series(parsed['features'])
     
     def get_available_sensors(self) -> List[str]:
         """Get list of available sensors"""
@@ -402,15 +566,15 @@ def get_plotting_engine():
 def prepare_example_plot():
     """Create and return a matplotlib figure for the example plot."""
     engine = get_plotting_engine()
-    return engine.plot_feature_comparison(engine.get_top_discriminative_features(n=3), 'boxplot')
+    return engine.plot_time_series(engine.get_top_discriminative_features(n=3))
 
-def prepare_boxplot_accelerometer():
-    """Create boxplot comparing OK vs KO conditions for accelerometer data"""
+def prepare_line_graph_accelerometer():
+    """Create line graph (time series) for accelerometer data"""
     engine = get_plotting_engine()
     acc_features = engine.get_sensor_features('acc')
     if not acc_features:
         acc_features = engine.get_top_discriminative_features(n=3)
-    return engine.plot_feature_comparison(acc_features, 'boxplot')
+    return engine.plot_time_series(acc_features)
 
 def prepare_temperature_histogram():
     """Create histogram comparing temperature distributions"""
@@ -443,9 +607,9 @@ def prepare_scatter_plot_features():
 def prepare_sensor_comparison_plot():
     """Create a comparison plot showing different sensors and their statistics"""
     engine = get_plotting_engine()
-    return engine.plot_feature_comparison(engine.get_top_discriminative_features(n=6), 'boxplot')
+    return engine.plot_time_series(engine.get_top_discriminative_features(n=6))
 
 def prepare_statistics_summary_plot():
     """Create a summary plot showing overall statistics"""
     engine = get_plotting_engine()
-    return engine.plot_feature_comparison(engine.get_top_discriminative_features(n=4), 'histogram')
+    return engine.plot_time_series(engine.get_top_discriminative_features(n=4))

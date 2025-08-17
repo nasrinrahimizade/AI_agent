@@ -268,7 +268,7 @@ class StatisticalAIAgent:
             # Generate suggestions based on available data
             suggestions = {
                 'sensor_comparisons': [
-                    f"show boxplot comparison of {sensor} sensor" for sensor in sensors[:5]
+                    f"show line graph comparison of {sensor} sensor" for sensor in sensors[:5]
                 ],
                 'distribution_analysis': [
                     f"plot histogram of {sensor} data" for sensor in sensors[:3]
@@ -318,7 +318,7 @@ class StatisticalAIAgent:
         
         try:
             # Detect request type
-            plot_keywords = ['plot', 'chart', 'graph', 'show', 'visualize', 'histogram', 'boxplot', 'correlation']
+            plot_keywords = ['plot', 'chart', 'graph', 'show', 'visualize', 'histogram', 'line graph', 'correlation']
             analysis_keywords = ['analyze', 'summary', 'features', 'statistics', 'best', 'top', 'discriminative']
             
             is_plot_request = any(keyword in user_input_lower for keyword in plot_keywords)
@@ -342,7 +342,7 @@ class StatisticalAIAgent:
                     'message': 'I can help with statistical analysis and plot generation. Try asking for "top features", "plot accelerometer data", or "analyze dataset".',
                     'suggestions': [
                         'What are the top discriminative features?',
-                        'Show me a boxplot of accelerometer data',
+                        'Show me a line graph of accelerometer data',
                         'Generate correlation matrix',
                         'Analyze the dataset'
                     ]
@@ -454,7 +454,7 @@ def test_ai_agent():
         
         # Test 5: Plot generation
         print("\n5️⃣ TESTING: Plot Generation")
-        plot_result = agent.generate_plot("show boxplot of accelerometer data")
+        plot_result = agent.generate_plot("show line graph of accelerometer data")
         if plot_result['status'] == 'success':
             print(f"   Plot generated in {plot_result['processing_time']:.2f}s")
             print(f"   Request: {plot_result['request']}")

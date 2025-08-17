@@ -31,7 +31,7 @@ class StatisticType(Enum):
 class PlotType(Enum):
     """Types of plots"""
     HISTOGRAM = "histogram"
-    BOXPLOT = "boxplot"
+    LINE_GRAPH = "line_graph"
     SCATTER = "scatter"
     CORRELATION = "correlation"
     TIMESERIES = "timeseries"
@@ -113,7 +113,7 @@ class CommandParser:
         # Plot type patterns
         self.plot_patterns = {
             PlotType.HISTOGRAM: [r'\b(?:histogram|hist|distribution|frequency|bins|count\s+plot)\b'],
-            PlotType.BOXPLOT: [r'\b(?:boxplot|box|quartile|whisker|outlier|box\s+plot)\b'],
+            PlotType.LINE_GRAPH: [r'\b(?:line graph|line|trend|time series|temporal)\b'],
             PlotType.SCATTER: [r'\b(?:scatter|scatterplot|scatter\s+plot|point\s+plot|dots|correlation\s+plot)\b'],
             PlotType.CORRELATION: [r'\b(?:correlation|corr|relationship|association|connection|correlation\s+matrix)\b'],
             PlotType.TIMESERIES: [r'\b(?:time\s+series|timeseries|trend|temporal|over\s+time|timeline|time\s+plot)\b'],

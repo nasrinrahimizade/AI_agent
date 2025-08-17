@@ -367,7 +367,7 @@ class ResponseFormatter:
     
     def _format_plot_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format a plot response"""
-        plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'boxplot'
+        plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
         target_features = parsed_command.target_features
         
         if target_features:
@@ -433,7 +433,7 @@ class ResponseFormatter:
             'suggestions': suggestions,
             'data_source': ml_result.get('data_source', 'Comparison analysis'),
             'confidence': parsed_command.confidence,
-            'plot_suggestion': 'boxplot'
+            'plot_suggestion': 'line_graph'
         }
     
     def _format_analysis_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -462,7 +462,7 @@ class ResponseFormatter:
             'suggestions': suggestions,
             'data_source': ml_result.get('data_source', 'Analysis engine'),
             'confidence': parsed_command.confidence,
-            'plot_suggestion': 'histogram'
+            'plot_suggestion': 'line_graph'  # Changed from 'histogram' to 'line_graph' as default
         }
     
     def _format_grouped_results(self, grouped_data: Dict[str, Any]) -> str:
@@ -548,31 +548,31 @@ class ResponseFormatter:
             if command_type == 'top_features':
                 return 'correlation_matrix'  # Best for feature analysis
             elif command_type == 'comparison':
-                return 'boxplot'
+                return 'line_graph'
             elif command_type == 'statistic':
                 return 'histogram'
             else:
-                return 'boxplot'  # Default visual response
+                return 'line_graph'  # Default visual response
         
         # Auto mode - use smart defaults
         # Top features requests should not suggest plots - they're text-only
         if command_type == 'top_features':
             return None  # No plot suggestion for text-only responses
         elif command_type == 'plot':
-            return 'histogram' # Default for plot
+            return 'line_graph'  # Changed from 'histogram' to 'line_graph' as default
         elif command_type == 'comparison':
-            return 'boxplot'
+            return 'line_graph'
         elif command_type == 'analysis':
-            return 'histogram' # Default for analysis
+            return 'line_graph'  # Changed from 'histogram' to 'line_graph' as default
         else:
             if grouping == 'class':
                 if command_type in ['mean', 'median', 'std', 'variance']:
-                    return 'boxplot'
+                    return 'line_graph'
                 else:
-                    return 'histogram'
+                    return 'line_graph'  # Changed from 'histogram' to 'line_graph'
             else:
                 if command_type in ['mean', 'median']:
-                    return 'histogram'
+                    return 'line_graph'  # Changed from 'histogram' to 'line_graph'
                 else:
                     return 'scatter'
     

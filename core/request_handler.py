@@ -104,7 +104,7 @@ class RequestHandler:
             
             elif command_type.value == 'plot':
                 # Handle plot requests
-                plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'boxplot'
+                plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
                 features = parsed_command.target_features if parsed_command.target_features else [target_column]
                 
                 # First get the plot data
@@ -207,7 +207,7 @@ class RequestHandler:
                         "Show the variance of acceleration in IIS3DWB_ACC for OK and KO.",
                         "Give me the standard deviation of pressure from LPS22HH_PRESS for each class.",
                         "List the top 3 statistical indices that best separate OK and KO samples.",
-                        "Create a boxplot comparing temperature across all classes",
+                        "Create a line graph comparing temperature across all classes",
                         "Show me a histogram of humidity data",
                         "Generate a correlation matrix between sensors"
                     ]
@@ -264,7 +264,7 @@ class RequestHandler:
                 validation_result['suggestions'].append("Please specify what statistic you want (mean, median, variance, etc.)")
             
             if parsed_command.command_type.value == 'plot' and not parsed_command.plot_type:
-                validation_result['suggestions'].append("Please specify what type of plot you want (boxplot, histogram, etc.)")
+                validation_result['suggestions'].append("Please specify what type of plot you want (line graph, histogram, etc.)")
             
             # Add specific suggestions based on parsed components
             if parsed_command.target_column and 'HTS221' in parsed_command.target_column:

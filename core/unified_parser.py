@@ -39,7 +39,7 @@ class StatisticType(Enum):
 
 class PlotType(Enum):
     """Types of plots available"""
-    BOXPLOT = "boxplot"
+    LINE_GRAPH = "line_graph"
     HISTOGRAM = "histogram"
     SCATTER = "scatter"
     VIOLIN = "violin"
@@ -132,10 +132,10 @@ class UnifiedParser:
         
         # Plot patterns
         self.plot_patterns = {
-            PlotType.BOXPLOT: [
-                r'\b(?:show |create |generate |make |display )?(?:a )?boxplot\b',
-                r'\b(?:box plot|box-plot)\b'
-            ],
+                    PlotType.LINE_GRAPH: [
+            r'\b(?:show |create |generate |make |display )?(?:a )?line graph\b',
+            r'\b(?:line|linegraph|line-graph)\b'
+        ],
             PlotType.HISTOGRAM: [
                 r'\b(?:show |create |generate |make |display )?(?:a )?histogram\b',
                 r'\b(?:hist|distribution plot)\b'
@@ -165,7 +165,7 @@ class UnifiedParser:
             ],
             CommandType.PLOT: [
                 r'\b(?:show|create|generate|make|display|plot)\b',
-                r'\b(?:boxplot|histogram|scatter|correlation|heatmap)\b'
+                r'\b(?:line graph|histogram|scatter|correlation|heatmap)\b'
             ],
             CommandType.COMPARISON: [
                 r'\b(?:compare|comparison|vs|versus|between)\b',

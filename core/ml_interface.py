@@ -889,7 +889,7 @@ class MLInterface:
                         'ylabel': 'Frequency'
                     }
                     
-            elif plot_type.lower() in ['boxplot', 'box']:
+            elif plot_type.lower() in ['line graph', 'line']:
                 plot_data = {}
                 for feature in target_features:
                     plot_data[feature] = {
@@ -1017,7 +1017,7 @@ class MLInterface:
             return {
                 'status': 'success',
                 'capabilities': {
-                    'plot_types': ['boxplot', 'histogram', 'violin', 'correlation', 'timeseries', 'frequency', 'scatter'],
+                    'plot_types': ['line graph', 'histogram', 'violin', 'correlation', 'timeseries', 'frequency', 'scatter'],
                     'available_sensors': summary['available_sensors'],
                     'feature_categories': summary['feature_categories'],
                     'sample_counts': summary['sample_counts'],
@@ -1031,7 +1031,7 @@ class MLInterface:
                 'status': 'error',
                 'message': 'Plotting engine not available',
                 'capabilities': {
-                    'plot_types': ['boxplot', 'histogram', 'correlation'],
+                    'plot_types': ['line graph', 'histogram', 'correlation'],
                     'available_sensors': self.available_sensors,
                     'feature_categories': {},
                     'sample_counts': {},
@@ -1078,7 +1078,7 @@ class MLInterface:
                     axes[i].set_ylabel(data['ylabel'])
                     axes[i].grid(True, alpha=0.3)
                 
-            elif plot_type.lower() in ['boxplot', 'box']:
+            elif plot_type.lower() in ['line graph', 'line']:
                 fig, axes = plt.subplots(1, len(plot_data), figsize=(6*len(plot_data), 5))
                 if len(plot_data) == 1:
                     axes = [axes]
@@ -1087,16 +1087,17 @@ class MLInterface:
                     class_names = list(data['class_data'].keys())
                     class_values = list(data['class_data'].values())
                     
-                    bp = axes[i].boxplot(class_values, labels=class_names, patch_artist=True)
+                    # Create line graph for each class
+                    for j, (class_name, values) in enumerate(zip(class_names, class_values)):
+                        if values:  # Check if values exist
+                            x_values = range(len(values))
+                            axes[i].plot(x_values, values, 'o-', label=class_name, alpha=0.7, linewidth=2, markersize=4)
+                    
                     axes[i].set_title(data['title'])
                     axes[i].set_xlabel(data['xlabel'])
                     axes[i].set_ylabel(data['ylabel'])
+                    axes[i].legend()
                     axes[i].grid(True, alpha=0.3)
-                    
-                    # Color the boxes
-                    colors = ['lightblue', 'lightgreen', 'lightcoral', 'lightyellow']
-                    for patch, color in zip(bp['boxes'], colors[:len(class_names)]):
-                        patch.set_facecolor(color)
                 
             elif plot_type.lower() in ['scatter', 'scatterplot']:
                 fig, ax = plt.subplots(1, 1, figsize=(8, 6))
