@@ -533,23 +533,110 @@ class MLInterface:
         """Get overview of the dataset."""
         if self.mock_data is not None:
             try:
+                # More robust feature extraction
+                all_columns = list(self.mock_data.columns)
+                
+                # Identify label and sample columns more flexibly
+                exclude_columns = []
+                for col in all_columns:
+                    if col.lower() in ['label', 'sample', 'class', 'target', 'y']:
+                        exclude_columns.append(col)
+                
+                # Get feature columns (everything except excluded columns)
+                feature_columns = [col for col in all_columns if col not in exclude_columns]
+                
+                # Get class information - try different possible label column names
+                label_column = None
+                class_info = {}
+                
+                for possible_label in ['label', 'class', 'target', 'y']:
+                    if possible_label in self.mock_data.columns:
+                        label_column = possible_label
+                        class_info = self.mock_data[possible_label].value_counts().to_dict()
+                        break
+                
+                # If no standard label column found, check first few columns
+                if not class_info:
+                    for col in all_columns[:3]:  # Check first 3 columns
+                        if self.mock_data[col].dtype == 'object' or self.mock_data[col].nunique() < 10:
+                            label_column = col
+                            class_info = self.mock_data[col].value_counts().to_dict()
+                            break
+                
+                # Get data type information
+                data_types = {}
+                numeric_features = []
+                categorical_features = []
+                
+                for col in feature_columns:
+                    dtype = str(self.mock_data[col].dtype)
+                    data_types[col] = dtype
+                    
+                    if self.mock_data[col].dtype in ['int64', 'float64', 'int32', 'float32']:
+                        numeric_features.append(col)
+                    else:
+                        categorical_features.append(col)
+                
+                # Calculate basic statistics
+                missing_values = self.mock_data.isnull().sum().sum()
+                total_values = len(self.mock_data) * len(self.mock_data.columns)
+                missing_percentage = (missing_values / total_values * 100) if total_values > 0 else 0
+                
                 overview = {
                     'status': 'success',
                     'total_samples': len(self.mock_data),
-                    'classes': self.mock_data['label'].value_counts().to_dict(),
-                    'features': list(self.mock_data.columns[2:]),  # Exclude label and sample
-                    'data_source': 'Mock data simulation'
+                    'total_features': len(feature_columns),
+                    'numeric_features': len(numeric_features),
+                    'categorical_features': len(categorical_features),
+                    'classes': class_info,
+                    'label_column': label_column,
+                    'feature_columns': feature_columns[:20],  # Show first 20 features
+                    'total_feature_count': len(feature_columns),
+                    'sample_feature_names': feature_columns[:10] if feature_columns else [],
+                    'data_shape': list(self.mock_data.shape),
+                    'missing_values_total': missing_values,
+                    'missing_percentage': round(missing_percentage, 2),
+                    'column_info': {
+                        'all_columns': all_columns,
+                        'excluded_columns': exclude_columns,
+                        'data_types_summary': {
+                            'numeric': len(numeric_features),
+                            'categorical': len(categorical_features)
+                        }
+                    },
+                    'data_source': 'Loaded CSV data'
                 }
+                
+                # Add memory usage info if possible
+                try:
+                    memory_usage = self.mock_data.memory_usage(deep=True).sum()
+                    overview['memory_usage_bytes'] = memory_usage
+                    overview['memory_usage_mb'] = round(memory_usage / (1024 * 1024), 2)
+                except:
+                    pass
+                
                 return overview
+                
             except Exception as e:
                 logging.error(f"Error getting dataset overview: {e}")
+                import traceback
+                error_details = traceback.format_exc()
+                
+                return {
+                    'status': 'error',
+                    'message': f'Error analyzing dataset: {str(e)}',
+                    'error_details': error_details,
+                    'data_source': 'Error in analysis'
+                }
         
+        # Fallback if no data loaded
         return {
-            'status': 'success',
-            'total_samples': 20,
-            'classes': {'OK': 5, 'KO': 5, 'KO_HIGH_2mm': 5, 'KO_LOW_2mm': 5},
-            'features': self.available_sensors,
-            'data_source': 'Fallback mock data'
+            'status': 'warning',
+            'message': 'No dataset loaded, using fallback information',
+            'total_samples': 'Unknown',
+            'classes': 'Unknown',
+            'features': self.available_sensors if hasattr(self, 'available_sensors') else [],
+            'data_source': 'Fallback - no data loaded'
         }
 
     def get_feature_analysis(self, feature: str) -> Dict[str, Any]:
@@ -1330,6 +1417,147 @@ class MLInterface:
 # Global instance
 ml_interface = MLInterface()
 
+
+# Add this test to your main function or create a separate test
+def test_dataset_overview():
+    """Simple test for the dataset overview function"""
+    print("\n" + "=" * 60)
+    print("TESTING DATASET OVERVIEW FUNCTION")
+    print("=" * 60)
+    
+    try:
+        # Get the overview
+        overview = ml_interface.get_dataset_overview()
+        
+        # Check if the function executed successfully
+        if overview['status'] == 'success':
+            print("✓ Dataset overview function executed successfully")
+            
+            # Display key information
+            print(f"\nDATASET SUMMARY:")
+            print(f"- Status: {overview['status']}")
+            print(f"- Total samples: {overview['total_samples']}")
+            print(f"- Data shape: {overview.get('data_shape', 'N/A')}")
+            print(f"- Total features: {overview['total_features']}")
+            print(f"- Numeric features: {overview['numeric_features']}")
+            print(f"- Categorical features: {overview['categorical_features']}")
+            print(f"- Label column: {overview.get('label_column', 'N/A')}")
+            print(f"- Missing values: {overview.get('missing_values_total', 'N/A')} ({overview.get('missing_percentage', 'N/A')}%)")
+            print(f"- Memory usage: {overview.get('memory_usage_mb', 'N/A')} MB")
+            print(f"- Data source: {overview['data_source']}")
+            
+            # Display class distribution
+            print(f"\nCLASS DISTRIBUTION:")
+            if overview['classes']:
+                for class_name, count in overview['classes'].items():
+                    percentage = (count / overview['total_samples'] * 100) if overview['total_samples'] > 0 else 0
+                    print(f"- {class_name}: {count} samples ({percentage:.1f}%)")
+            else:
+                print("- No class information available")
+            
+            # Display sample features
+            print(f"\nSAMPLE FEATURES (first 10):")
+            sample_features = overview.get('sample_feature_names', [])
+            if sample_features:
+                for i, feature in enumerate(sample_features, 1):
+                    print(f"  {i:2d}. {feature}")
+            else:
+                print("- No feature information available")
+            
+            if overview['total_feature_count'] > 10:
+                print(f"  ... and {overview['total_feature_count'] - 10} more features")
+            
+            # Display column information
+            print(f"\nCOLUMN INFORMATION:")
+            col_info = overview.get('column_info', {})
+            if col_info:
+                print(f"- Total columns: {len(col_info.get('all_columns', []))}")
+                print(f"- Excluded columns: {col_info.get('excluded_columns', [])}")
+                data_types_summary = col_info.get('data_types_summary', {})
+                print(f"- Data types: {data_types_summary.get('numeric', 0)} numeric, {data_types_summary.get('categorical', 0)} categorical")
+            
+            # Validation checks
+            print(f"\nVALIDATION CHECKS:")
+            checks_passed = 0
+            total_checks = 5
+            
+            # Check 1: Has data
+            if overview['total_samples'] > 0:
+                print("✓ Dataset contains samples")
+                checks_passed += 1
+            else:
+                print("✗ Dataset is empty")
+            
+            # Check 2: Has features
+            if overview['total_features'] > 0:
+                print("✓ Dataset contains features")
+                checks_passed += 1
+            else:
+                print("✗ No features found")
+            
+            # Check 3: Has classes
+            if overview['classes'] and len(overview['classes']) > 0:
+                print("✓ Class information available")
+                checks_passed += 1
+            else:
+                print("✗ No class information found")
+            
+            # Check 4: Reasonable data quality
+            missing_pct = overview.get('missing_percentage', 0)
+            if missing_pct < 20:
+                print(f"✓ Acceptable missing data level ({missing_pct}%)")
+                checks_passed += 1
+            else:
+                print(f"⚠ High missing data level ({missing_pct}%)")
+            
+            # Check 5: Multiple classes for classification
+            num_classes = len(overview['classes']) if overview['classes'] else 0
+            if num_classes >= 2:
+                print(f"✓ Multiple classes for classification ({num_classes} classes)")
+                checks_passed += 1
+            else:
+                print(f"⚠ Only {num_classes} class(es) found")
+            
+            print(f"\nOVERALL ASSESSMENT: {checks_passed}/{total_checks} checks passed")
+            
+            if checks_passed >= 4:
+                print("🎉 Dataset looks good for analysis!")
+            elif checks_passed >= 2:
+                print("⚠️  Dataset has some issues but may be usable")
+            else:
+                print("❌ Dataset has significant issues")
+            
+        elif overview['status'] == 'warning':
+            print("⚠️ Dataset overview returned warning")
+            print(f"Message: {overview.get('message', 'Unknown warning')}")
+            
+        else:  # status == 'error'
+            print("❌ Dataset overview failed")
+            print(f"Error: {overview.get('message', 'Unknown error')}")
+            if 'error_details' in overview:
+                print("Error details:")
+                print(overview['error_details'])
+        
+        return overview
+        
+    except Exception as e:
+        print(f"❌ Test failed with exception: {str(e)}")
+        import traceback
+        print("Traceback:")
+        print(traceback.format_exc())
+        return None
+
+
+# If you want to add this to your existing main function, add this line:
+
+
+# # Or run it standalone:
+# if __name__ == "__main__":
+#     # Your existing tests...
+    
+#     # Add this line at the end:
+#     test_dataset_overview()
+
 if __name__ == "__main__":
     print("=" * 80)
     print("TESTING ML INTERFACE WITH UPDATED DATASET COMPATIBILITY")
@@ -1487,7 +1715,7 @@ if __name__ == "__main__":
         print("  ✓ Success:")
         print(f"    - Total samples: {overview['total_samples']}")
         print(f"    - Classes: {overview['classes']}")
-        print(f"    - Number of features: {len(overview['features'])}")
+        # print(f"    - Number of features: {len(overview['features'])}")
     else:
         print(f"  ✗ Error: {overview.get('message', 'Unknown error')}")
     
@@ -1582,3 +1810,5 @@ if __name__ == "__main__":
         print("✗ Function failed:")
         print(f"Error: {result['message']}")
     
+
+    test_dataset_overview()
