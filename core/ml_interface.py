@@ -66,7 +66,7 @@ class MLInterface:
                                     'ISM330DHCX_ACC', 'ISM330DHCX_GYRO', 'IMP23ABSU_MIC', 'IMP34DT05_MIC']
         
         
-        self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm']
+        self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
         self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
                                    'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
 
@@ -372,6 +372,111 @@ class MLInterface:
                 'message': f'Error in feature analysis: {str(e)}',
                 'data_source': 'Mock data',
                 'data_quality': 'analysis_error'
+            }
+
+    def identify_statistical_features(self, n: int = 5, classes: List[str] = None) -> Dict[str, Any]:
+        """Advanced statistical feature identification using StatisticalAnalysisEngine.
+
+        Calculates multiple statistical measures and ranks features by separation power (OK vs KO),
+        optionally augmenting with model-based feature importance. Falls back to get_top_features on error.
+        """
+        try:
+            # Lazy import to avoid hard dependency at startup
+            from ML.statistical_engine import StatisticalAnalysisEngine
+
+            engine = StatisticalAnalysisEngine(self.feature_matrix_path)
+            # Always use binary mode for separation: OK vs KO
+            engine.calculate_class_statistics(binary_mode=True)
+            discrim = engine.get_best_discriminative_features(top_n=n)
+
+            # Try model training to add importances (ignore if it fails)
+            model_results = {}
+            try:
+                model_results = engine.train_discrimination_models()
+            except Exception:
+                model_results = {}
+
+            # Aggregate model importances (normalize per model, then average)
+            model_importance_map: Dict[str, float] = {}
+            model_count = 0
+            for name, res in model_results.items():
+                feats = res.get('feature_importance') or []
+                if not feats:
+                    continue
+                model_count += 1
+                # Normalize importance to [0,1] within model
+                values = [f.get('importance', 0.0) for f in feats]
+                max_val = max(values) if values else 1.0
+                for f in feats:
+                    fname = f.get('feature')
+                    if not fname:
+                        continue
+                    norm = (f.get('importance', 0.0) / max_val) if max_val else 0.0
+                    model_importance_map[fname] = model_importance_map.get(fname, 0.0) + norm
+
+            if model_count > 0:
+                # Average across models
+                for k in list(model_importance_map.keys()):
+                    model_importance_map[k] = model_importance_map[k] / model_count
+
+            # Build response compatible with existing formatter
+            top_features = []
+            feature_details: Dict[str, Any] = {}
+            model_importances: Dict[str, Any] = {}
+
+            for item in discrim[:n]:
+                feat = item.get('feature_name')
+                if not feat:
+                    continue
+                top_features.append(feat)
+                details = {
+                    'discriminative_score': item.get('separation_score'),
+                    'effect_size': item.get('effect_size'),
+                    'effect_interpretation': item.get('effect_interpretation'),
+                    'p_value': item.get('p_value'),
+                    'statistical_significance': item.get('statistical_significance'),
+                }
+                # Add class means/std if available
+                for cls in ['OK', 'KO']:
+                    key_mean = f'{cls}_mean'
+                    key_std = f'{cls}_std'
+                    if key_mean in item:
+                        details.setdefault('class_means', {})[cls] = item[key_mean]
+                    if key_std in item:
+                        details.setdefault('class_stds', {})[cls] = item[key_std]
+                # Add model importance if computed
+                if model_importance_map:
+                    details['model_importance'] = model_importance_map.get(feat)
+
+                feature_details[feat] = details
+
+            # Include per-model top feature importances for UI formatting
+            if model_results:
+                for name, res in model_results.items():
+                    feats = res.get('feature_importance') or []
+                    # Keep as-is (list of {'feature','importance'})
+                    model_importances[name] = feats
+
+            return {
+                'status': 'success',
+                'top_features': top_features,
+                'feature_details': feature_details,
+                'model_importances': model_importances,
+                'classes': classes or ['OK', 'KO'],
+                'sample_count': len(self.mock_data) if self.mock_data is not None else 0,
+                'data_source': 'Statistical engine with real data',
+                'analysis_method': 'Statistical feature identification (t-tests/ANOVA + effect size + model importance)'
+            }
+
+        except Exception as e:
+            # Safe fallback to existing implementation
+            try:
+                return self.get_top_features(n=n, classes=classes or ['OK', 'KO'])
+            except Exception:
+                return {
+                    'status': 'error',
+                    'message': f'Error identifying statistical features: {str(e)}',
+                    'data_source': 'Fallback'
             }
     
     def _map_sensor_to_column(self, sensor_name: str) -> str:

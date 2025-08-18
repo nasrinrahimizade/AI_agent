@@ -88,7 +88,8 @@ class RequestHandler:
                 classes = class_filters if class_filters else ['OK', 'KO']
                 count = parsed_command.filters.get('count', 3)  # Default to 3
                 
-                return ml_interface.get_top_features(n=count, classes=classes)
+                # Prefer advanced statistical identification with safe fallback inside
+                return ml_interface.identify_statistical_features(n=count, classes=classes)
             
             elif command_type.value == 'statistic':
                 # Handle statistical requests
@@ -125,7 +126,7 @@ class RequestHandler:
                         # Combine both results
                         return {
                             'status': 'success',
-                            'plot_type': plot_type,
+                            'plot_type': plot_type,  # carry actual plot type forward for accurate UI text
                             'plot_data': plot_data_result['plot_data'],
                             'plot_path': plot_creation_result['plot_path'],
                             'figure': plot_creation_result.get('figure'),

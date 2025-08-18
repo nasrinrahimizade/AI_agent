@@ -23,7 +23,7 @@ class PlottingEngine:
         
     def prepare_data(self):
         """Prepare data for plotting - handle 4-class structure properly"""
-        # Keep original 4-class structure: OK, KO, KO_HIGH_2mm, KO_LOW_2mm
+        # Keep original 4-class structure: OK, KO_HIGH_2mm, KO_LOW_2mm, KO_LOW_4mm
         self.classes = sorted(self.df['label'].unique())
         print(f"✅ Data prepared: {len(self.classes)} classes found: {self.classes}")
         
@@ -50,10 +50,11 @@ class PlottingEngine:
         
         # Define color scheme for 4 classes
         self.class_colors = {
-            'OK': '#2E8B57',           # Sea Green
-            'KO': '#CD5C5C',           # Indian Red
-            'KO_HIGH_2mm': '#FF8C00',  # Dark Orange
-            'KO_LOW_2mm': '#8B008B'    # Dark Magenta
+            'OK': '#2E8B57',            # Sea Green
+            'KO': '#CD5C5C',            # Indian Red (aggregated KO if present)
+            'KO_HIGH_2mm': '#FF8C00',   # Dark Orange
+            'KO_LOW_2mm': '#8B008B',    # Dark Magenta
+            'KO_LOW_4mm': '#4169E1'     # Royal Blue
         }
         
         # Define feature categories for better organization

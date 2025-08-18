@@ -221,7 +221,8 @@ class UnifiedParser:
             'OK': [r'\bOK\b', r'\bok\b', r'\bgood\b', r'\bnormal\b'],
             'KO': [r'\bKO\b', r'\bko\b', r'\bbad\b', r'\bfaulty\b'],
             'KO_HIGH_2mm': [r'\bKO_HIGH_2mm\b', r'\bko_high_2mm\b', r'\bhigh\b', r'\bhigh_2mm\b'],
-            'KO_LOW_2mm': [r'\bKO_LOW_2mm\b', r'\bko_low_2mm\b', r'\blow\b', r'\blow_2mm\b']
+            'KO_LOW_2mm': [r'\bKO_LOW_2mm\b', r'\bko_low_2mm\b', r'\blow\b', r'\blow_2mm\b'],
+            'KO_LOW_4mm': [r'\bKO_LOW_4mm\b', r'\bko_low_4mm\b', r'\blow 4mm\b', r'\blow_4mm\b']
         }
         
         # Compile patterns for efficiency

@@ -379,7 +379,7 @@ class Chatbot:
         lines.append("AI:")
         return "\n".join(lines)
 
-    def generate(self, user_input: str, max_new_tokens: int =230) -> str:
+    def generate(self, user_input: str, max_new_tokens: int =250) -> str:
         start_time = time.time()
         
         # IMPORTANT: This method has TWO response paths:
@@ -405,47 +405,68 @@ class Chatbot:
                     elif response_type == 'visual':
                         # Visual response - include plot trigger
                         response = response_data['main_response']
-                        plot_suggestion = response_data.get('plot_suggestion')
-                        if plot_suggestion:
-                            # Ensure the response accurately reflects the plot type being created
+                        # Prefer the actual plot_type returned from the pipeline over suggestion
+                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                        # Normalize aliases
+                        if effective_plot in ['line', 'line graph', 'line_graph']:
+                            response = "📈 Creating line graph..."
+                            trigger = 'line_graph'
+                        elif effective_plot in ['hist', 'histogram']:
+                            response = "📊 Creating histogram..."
+                            trigger = 'histogram'
+                        elif effective_plot in ['scatter', 'scatterplot']:
+                            response = "💫 Creating scatter plot..."
+                            trigger = 'scatter'
+                        elif effective_plot in ['correlation', 'correlation_matrix']:
+                            response = "🔗 Creating correlation matrix..."
+                            trigger = 'correlation'
+                        elif effective_plot in ['timeseries', 'time series']:
+                            response = "🕒 Creating time series plot..."
+                            trigger = 'timeseries'
+                        elif effective_plot in ['frequency', 'fft']:
+                            response = "📡 Creating frequency domain plot..."
+                            trigger = 'frequency'
+                        else:
+                            # Fallback to suggestion if available
+                            plot_suggestion = response_data.get('plot_suggestion')
                             if plot_suggestion == 'line_graph':
-                                response = "📈 Creating line graph..."  # Always accurate for line graphs
+                                response = "📈 Creating line graph..."; trigger = 'line_graph'
                             elif plot_suggestion == 'histogram':
-                                response = "📊 Creating histogram..."  # Always accurate for histograms
+                                response = "📊 Creating histogram..."; trigger = 'histogram'
                             elif plot_suggestion == 'scatter':
-                                response = "💫 Creating scatter plot..."  # Always accurate for scatter plots
+                                response = "💫 Creating scatter plot..."; trigger = 'scatter'
                             elif plot_suggestion == 'correlation':
-                                response = "🔗 Creating correlation matrix..."  # Always accurate for correlation
+                                response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
                             elif plot_suggestion == 'timeseries':
-                                response = "🕒 Creating time series plot..."  # Always accurate for time series
+                                response = "🕒 Creating time series plot..."; trigger = 'timeseries'
                             elif plot_suggestion == 'frequency':
-                                response = "📡 Creating frequency domain plot..."  # Always accurate for frequency
+                                response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
                             else:
-                                response = f"📊 Creating {plot_suggestion}..."  # Generic fallback
-                            
-                            response += f" [TRIGGER_PLOT:{plot_suggestion}]"
+                                trigger = (plot_suggestion or 'line_graph')
+                                response = f"📊 Creating {trigger}..."
+
+                        response += f" [TRIGGER_PLOT:{trigger}]"
                     else:
                         # Auto mode - check if plot is suggested
                         response = response_data['main_response']
-                        plot_suggestion = response_data.get('plot_suggestion')
-                        if plot_suggestion:
-                            # Ensure the response accurately reflects the plot type being created
-                            if plot_suggestion == 'line_graph':
-                                response = "📈 Creating line graph..."  # Always accurate for line graphs
-                            elif plot_suggestion == 'histogram':
-                                response = "📊 Creating histogram..."  # Always accurate for histograms
-                            elif plot_suggestion == 'scatter':
-                                response = "💫 Creating scatter plot..."  # Always accurate for scatter plots
-                            elif plot_suggestion == 'correlation':
-                                response = "🔗 Creating correlation matrix..."  # Always accurate for correlation
-                            elif plot_suggestion == 'timeseries':
-                                response = "🕒 Creating time series plot..."  # Always accurate for time series
-                            elif plot_suggestion == 'frequency':
-                                response = "📡 Creating frequency domain plot..."  # Always accurate for frequency
-                            else:
-                                response = f"📊 Creating {plot_suggestion}..."  # Generic fallback
-                            
-                            response += f" [TRIGGER_PLOT:{plot_suggestion}]"
+                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                        if effective_plot in ['line', 'line graph', 'line_graph']:
+                            response = "📈 Creating line graph..."; trigger = 'line_graph'
+                        elif effective_plot in ['hist', 'histogram']:
+                            response = "📊 Creating histogram..."; trigger = 'histogram'
+                        elif effective_plot in ['scatter', 'scatterplot']:
+                            response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                        elif effective_plot in ['correlation', 'correlation_matrix']:
+                            response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                        elif effective_plot in ['timeseries', 'time series']:
+                            response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                        elif effective_plot in ['frequency', 'fft']:
+                            response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                        else:
+                            trigger = (response_data.get('plot_suggestion') or 'line_graph')
+                            response = f"📊 Creating {trigger}..."
+
+                        response += f" [TRIGGER_PLOT:{trigger}]"
                     
                     # Update conversation context and return
                     self.user_messages.append(user_input)
@@ -767,8 +788,22 @@ class Chatbot:
         if not reply:
             return reply
             
-        # Remove excessive whitespace
-        reply = re.sub(r'\s+', ' ', reply).strip()
+        # Remove any code blocks or inline code to avoid showing code in chat
+        # Triple backtick fenced blocks (any language)
+        reply = re.sub(r"```[\s\S]*?```", "", reply)
+        # Inline code wrapped in single backticks
+        reply = re.sub(r"`[^`]*`", "", reply)
+        # HTML <pre> blocks if present
+        reply = re.sub(r"<pre[\s\S]*?>[\s\S]*?</pre>", "", reply, flags=re.IGNORECASE)
+
+        # Preserve single newlines for table formatting, collapse excessive spaces
+        # Replace Windows/Mac newlines with \n
+        reply = reply.replace('\r\n', '\n').replace('\r', '\n')
+        # Collapse multiple blank lines to a single blank line
+        reply = re.sub(r'\n\n\n+', '\n\n', reply)
+        # For each line, collapse internal runs of spaces > 2 to 1 (keep at most 2 to help alignment)
+        reply = '\n'.join([re.sub(r' {3,}', '  ', line).rstrip() for line in reply.split('\n')])
+        reply = reply.strip()
         
         # Remove repetitive sentences
         sentences = reply.split('.')

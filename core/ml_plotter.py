@@ -46,7 +46,7 @@ class PlottingEngine:
         n_samples = 50
         
         data = {
-            'label': np.random.choice(['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm'], n_samples),
+            'label': np.random.choice(['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm'], n_samples),
             'sample': [f'Sample_{i}' for i in range(n_samples)]
         }
         
@@ -59,25 +59,33 @@ class PlottingEngine:
         return pd.DataFrame(data)
         
     def prepare_data(self):
-        """Prepare data for plotting - separate OK vs KO classes"""
-        # Create binary classification: OK vs all KO types
+        """Prepare data for plotting - use 4-class structure (OK, KO_HIGH_2mm, KO_LOW_2mm, KO_LOW_4mm)"""
+        # Maintain binary classification for legacy callers
         self.df['binary_class'] = self.df['label'].apply(
             lambda x: 'OK' if x == 'OK' else 'KO'
         )
         
-        # Separate feature columns (exclude label, sample, binary_class)
-        self.feature_columns = [col for col in self.df.columns 
-                               if col not in ['label', 'sample', 'binary_class']]
+        # Multi-class setup
+        self.classes = sorted(self.df['label'].unique())
+        self.feature_columns = [col for col in self.df.columns if col not in ['label', 'sample', 'binary_class']]
+        self.class_data = {cls: self.df[self.df['label'] == cls] for cls in self.classes}
         
-        # Get OK and KO data
+        # Colors for classes
+        self.class_colors = {
+            'OK': '#2E8B57',            # Sea Green
+            'KO_HIGH_2mm': '#FF8C00',   # Dark Orange
+            'KO_LOW_2mm': '#8B008B',    # Dark Magenta
+            'KO_LOW_4mm': '#4169E1',    # Royal Blue
+            'KO': '#CD5C5C'             # Fallback if aggregated label exists
+        }
+        
+        # Convenience binary subsets
         self.ok_data = self.df[self.df['binary_class'] == 'OK']
         self.ko_data = self.df[self.df['binary_class'] == 'KO']
         
-        print(f"✅ Data prepared: {len(self.ok_data)} OK samples, {len(self.ko_data)} KO samples")
+        print(f"✅ Data prepared: classes={self.classes}")
         print(f"📊 Features available: {len(self.feature_columns)} features")
         print(f"🔍 Sample features: {self.feature_columns[:5]}")
-        
-        # Check for temperature features specifically
         temp_features = [col for col in self.feature_columns if 'temp' in col.lower()]
         print(f"🌡️ Temperature features found: {temp_features}")
     
@@ -320,7 +328,7 @@ class PlottingEngine:
         return result
     
     def plot_feature_comparison(self, features: List[str], plot_type: str = 'histogram') -> plt.Figure:
-        """Generate histogram plots between OK and KO for specific features"""
+        """Generate histogram plots by class for specific features (4-class)"""
         
         if not features:
             # If no specific features, use top discriminative features
@@ -340,12 +348,20 @@ class PlottingEngine:
             
             # Only histogram plots are supported now
             if plot_type == 'histogram':
-                # Histogram overlay
-                ax.hist(self.ok_data[feature].dropna(), alpha=0.7, label='OK', 
-                       bins=20, color='lightblue', density=True)
-                ax.hist(self.ko_data[feature].dropna(), alpha=0.7, label='KO', 
-                       bins=20, color='lightcoral', density=True)
-                ax.legend()
+                # Overlay per class
+                for class_name in self.classes:
+                    class_values = self.class_data[class_name][feature].dropna()
+                    if len(class_values) == 0:
+                        continue
+                    ax.hist(
+                        class_values,
+                        alpha=0.6,
+                        label=class_name,
+                        bins=20,
+                        color=self.class_colors.get(class_name, 'gray'),
+                        density=True
+                    )
+                ax.legend(title='Class')
             
             # Clean up feature name for title
             clean_name = feature.replace('_', ' ').title()
@@ -356,7 +372,7 @@ class PlottingEngine:
         for i in range(len(features), 6):
             axes[i].set_visible(False)
         
-        plt.suptitle(f'Histogram Comparison: OK vs KO Classes', fontsize=16)
+        plt.suptitle(f'Histogram Comparison by Class', fontsize=16)
         plt.tight_layout()
         return fig
     
@@ -402,13 +418,20 @@ class PlottingEngine:
         for i, feature in enumerate(features):
             ax = axes[i]
             
-            # Plot OK samples
-            ok_indices = self.ok_data.index
-            ax.plot(ok_indices, self.ok_data[feature], 'o-', label='OK', alpha=0.7)
-            
-            # Plot KO samples
-            ko_indices = self.ko_data.index
-            ax.plot(ko_indices, self.ko_data[feature], 's-', label='KO', alpha=0.7)
+            # Plot each class
+            for class_name in self.classes:
+                class_df = self.class_data[class_name]
+                if len(class_df) == 0:
+                    continue
+                indices = class_df.index
+                ax.plot(
+                    indices,
+                    class_df[feature],
+                    'o-',
+                    label=class_name,
+                    alpha=0.7,
+                    color=self.class_colors.get(class_name, None)
+                )
             
             ax.set_title(f'{feature.replace("_", " ").title()}')
             ax.set_xlabel('Sample Index')
@@ -469,13 +492,23 @@ class PlottingEngine:
         features = features[:4]  # Limit to 4 features
         
         if len(features) < 2:
-            # If only one feature, use it against sample index
+            # If only one feature, plot per class against sample index
             fig, ax = plt.subplots(figsize=(10, 6))
-            ax.scatter(range(len(self.df)), self.df[features[0]], 
-                      c=self.df['binary_class'].map({'OK': 'blue', 'KO': 'red'}))
+            for class_name in self.classes:
+                class_df = self.class_data[class_name]
+                if len(class_df) == 0:
+                    continue
+                ax.scatter(
+                    class_df.index,
+                    class_df[features[0]],
+                    label=class_name,
+                    alpha=0.7,
+                    c=self.class_colors.get(class_name, 'gray')
+                )
             ax.set_title(f'{features[0].replace("_", " ").title()} vs Sample Index')
             ax.set_xlabel('Sample Index')
             ax.set_ylabel(features[0].replace('_', ' ').title())
+            ax.legend()
             return fig
         
         # Create scatter matrix
@@ -491,9 +524,20 @@ class PlottingEngine:
                     ax.set_title(f'{feat1.replace("_", " ").title()}')
                 else:
                     # Off-diagonal: scatter plot
-                    ax.scatter(self.df[feat1], self.df[feat2], 
-                             c=self.df['binary_class'].map({'OK': 'blue', 'KO': 'red'}),
-                             alpha=0.6)
+                    # Plot each class with its color
+                    for class_name in self.classes:
+                        class_df = self.class_data[class_name]
+                        if len(class_df) == 0:
+                            continue
+                        ax.scatter(
+                            class_df[feat1],
+                            class_df[feat2],
+                            alpha=0.6,
+                            label=class_name,
+                            c=self.class_colors.get(class_name, 'gray')
+                        )
+                    if i == 0 and j == 1:
+                        ax.legend(fontsize=7)
                     ax.set_xlabel(feat1.replace('_', ' ').title())
                     ax.set_ylabel(feat2.replace('_', ' ').title())
                 

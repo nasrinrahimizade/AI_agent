@@ -7,6 +7,7 @@ for the GUI, including optional tables and plot suggestions.
 
 import logging
 from typing import Dict, List, Any, Optional
+import re
 from datetime import datetime
 
 class ResponseFormatter:
@@ -130,6 +131,16 @@ class ResponseFormatter:
             # Add response type information
             formatted_response['response_type'] = response_type
             formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+            
+            # Remove extra info in parentheses from the main reply text
+            try:
+                main = formatted_response.get('main_response', '')
+                if isinstance(main, str) and main:
+                    # Remove simple parenthetical segments like (OK vs KO), (ANOVA F-test), etc.
+                    cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
+                    formatted_response['main_response'] = cleaned
+            except Exception:
+                pass
             
             return formatted_response
                 
@@ -266,47 +277,108 @@ class ResponseFormatter:
             feature_details = ml_result.get('feature_details', {})
             count = len(features)
             
-            # Format features with detailed analysis
-            feature_descriptions = []
+            # Listing mode: one line per feature with rank, feature, sensor, score
+            original_request_text = getattr(parsed_command, 'original_request', '') or ''
+            if isinstance(original_request_text, str) and 'list' in original_request_text.lower():
+                lines = []
+                lines.append(f"Top {count} features (OK vs KO):")
+                lines.append("Rank  Feature                               Sensor           Score")
+                lines.append("---------------------------------------------------------------")
+                rows = []
+                for i, feature in enumerate(features, 1):
+                    details = feature_details.get(feature, {})
+                    sep = details.get('discriminative_score') or details.get('separation_score') or 0.0
+                    sensor_name = feature.split('_')[0] if '_' in feature else 'Unknown'
+                    lines.append(f"{i:<5} {feature[:35]:<35} {sensor_name:<15} {sep:>.4f}")
+                    rows.append([str(i), feature, sensor_name, f"{sep:.4f}"])
+                main_text = "\n".join(lines)
+                table_data = {
+                    'headers': ['Rank', 'Feature', 'Sensor', 'Score'],
+                    'rows': rows,
+                    'title': f'Top {count} Features (OK vs KO)'
+                }
+                return {
+                    'status': 'success',
+                    'main_response': main_text,
+                    'context': context,
+                    'suggestions': [
+                        "Show distributions of these features",
+                        "Compare the top 2 features",
+                        "List top features per sensor"
+                    ],
+                    'data_source': ml_result.get('data_source', 'Mock data'),
+                    'confidence': parsed_command.confidence,
+                    'data_quality': data_quality,
+                    'analysis_confidence': confidence,
+                    'plot_suggestion': None,
+                    'table_data': table_data
+                }
+
+            # Pretty, line-broken layout per feature with nested indentation
+            lines = []
+            lines.append(f"Top {count} statistical indices that best separate {classes_text} samples:")
             for i, feature in enumerate(features, 1):
-                # Get human-readable sensor name
-                sensor_display = self.sensor_display_names.get(feature, feature)
-                
-                # Add statistical details if available
-                if feature in feature_details:
-                    details = feature_details[feature]
-                    f_stat = details.get('f_statistic', 0)
-                    p_value = details.get('p_value', 1.0)
-                    class_means = details.get('class_means', {})
-                    
-                    # Format class means
-                    mean_details = []
-                    for cls, mean_val in class_means.items():
-                        mean_details.append(f"{cls}: {mean_val:.2f}")
-                    
-                    # Add statistical significance information
+                lines.append(f"{i}. {feature}")
+                details = feature_details.get(feature, {})
+                # Significance
+                p_value = details.get('p_value', None)
+                sig_flag = details.get('statistical_significance')
+                if p_value is not None:
                     significance = "highly significant" if p_value < 0.01 else "significant" if p_value < 0.05 else "not significant"
-                    
-                    feature_descriptions.append(
-                        f"{i}. {sensor_display} (F-stat: {f_stat:.2f}, p-value: {p_value:.4f})\n"
-                        f"   Statistical significance: {significance}\n"
-                        f"   Class means: {', '.join(mean_details)}"
-                    )
                 else:
-                    feature_descriptions.append(f"{i}. {sensor_display}")
-            
-            feature_list = '\n'.join(feature_descriptions)
-            
-            # Add detailed explanation with data quality context
-            main_text = f"Top {count} statistical indices that best separate {classes_text} samples:\n\n{feature_list}\n\n"
-            main_text += f"These features were selected using {analysis_method} (ANOVA F-test), which measures the discriminative power "
-            main_text += f"between {classes_text} classes. Higher F-statistics indicate greater separation between classes, "
-            main_text += f"making these features most effective for classification and quality control purposes."
-            
+                    significance = sig_flag if sig_flag else "not available"
+                lines.append(f"   - Statistical significance: {significance}")
+                # Class means
+                class_means = details.get('class_means', {})
+                if class_means:
+                    lines.append(f"   - Class means:")
+                    if 'OK' in class_means:
+                        lines.append(f"     - OK: {class_means['OK']:.2f}")
+                    if 'KO' in class_means:
+                        lines.append(f"     - KO: {class_means['KO']:.2f}")
+                # Spacer between features
+                if i != len(features):
+                    lines.append("")
+
+            # Explanatory text at the bottom (kept intact except global parentheses cleaner may run later)
+            expl = []
+            expl.append("These features were selected using Statistical feature identification, which measures the discriminative power between OK and KO classes. Higher F-statistics indicate greater separation between classes, making these features most effective for classification and quality control purposes.")
+
             # Add sample count information
             sample_count = ml_result.get('sample_count', 0)
             if sample_count > 0:
-                main_text += f"\n\nAnalysis based on {sample_count} samples from the dataset."
+                expl.append(f"Analysis based on {sample_count} samples from the dataset.")
+
+            # Append per-model section if available
+            model_imps = ml_result.get('model_importances') or {}
+            if model_imps:
+                expl.append("")
+                expl.append("Top 5 important features by model:")
+                for model_name, feats in model_imps.items():
+                    expl.append(f"{model_name}:")
+                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
+                    for j, entry in enumerate(sorted_feats, 1):
+                        fname = entry.get('feature', 'Unknown')
+                        score = entry.get('importance', 0.0)
+                        expl.append(f"  {j}. {fname}  {score:.4f}")
+                    expl.append("")
+
+            main_text = "\n".join(lines + ["", *expl]).rstrip()
+
+            # Append per-model top features (Top 5) with scores, clearly grouped by model
+            model_imps = ml_result.get('model_importances') or {}
+            if model_imps:
+                lines = []
+                lines.append("\nTop 5 important features by model:")
+                for model_name, feats in model_imps.items():
+                    lines.append(f"\n{model_name}:")
+                    # Sort by importance descending and take top 5
+                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
+                    for i, entry in enumerate(sorted_feats, 1):
+                        fname = entry.get('feature', 'Unknown')
+                        score = entry.get('importance', 0.0)
+                        lines.append(f"{i}. {fname}  {score:.4f}")
+                main_text += "\n" + "\n".join(lines)
             
         else:
             # Fallback to mock data

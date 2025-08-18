@@ -172,10 +172,15 @@ class ChatView(QWidget):
         message_label.setWordWrap(True)
         message_label.setAlignment(alignment)
         
-        # Set chat font
+        # Set chat font (default, no font changes for tables) and preserve wrapping
         chat_font = QFont()
         chat_font.setPointSize(12)
         message_label.setFont(chat_font)
+        message_label.setTextFormat(Qt.PlainText)
+        message_label.setWordWrap(True)
+        # Enable text selection and copy (Ctrl+C)
+        message_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
+        message_label.setFocusPolicy(Qt.StrongFocus)
         
         message_layout.addWidget(message_label)
         
@@ -480,6 +485,11 @@ class ChatView(QWidget):
         # Remove all trigger markers
         clean_response = re.sub(r'\[TRIGGER_PLOT:\w+\]', '', ai_response)
         clean_response = re.sub(r'\[TRIGGER_ANALYSIS:\w+\]', '', clean_response)
+        
+        # Strip any code blocks or inline code the model may have generated
+        clean_response = re.sub(r"```[\s\S]*?```", "", clean_response)  # fenced code
+        clean_response = re.sub(r"`[^`]*`", "", clean_response)          # inline code
+        clean_response = re.sub(r"<pre[\s\S]*?>[\s\S]*?</pre>", "", clean_response, flags=re.IGNORECASE)
         
         # Clean up any extra whitespace
         clean_response = re.sub(r'\s+', ' ', clean_response).strip()
