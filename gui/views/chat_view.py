@@ -12,7 +12,53 @@ from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_l
                            prepare_scatter_plot_features
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from core.ml_interface import ml_interface
+# from PySide6.QtCore import Qt, QEvent, QSize, QThread, pyqtSignal
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QEvent, QSize, QThread, Signal
 
+class AIWorkerThread(QThread):
+    # Signals to communicate with main thread
+    response_ready = Signal(str)    # AI response text
+    plot_ready = Signal(object)     # Plot figure object
+    error_occurred = Signal(str)    # Error message
+    
+    def __init__(self, chatbot, plotting_engine, parent=None):
+        super().__init__(parent)
+        self.chatbot = chatbot
+        self.plotting_engine = plotting_engine
+        self.user_message = ""
+        self.chat_view = None
+        
+    def set_request(self, user_message, chat_view):
+        self.user_message = user_message
+        self.chat_view = chat_view
+        
+    def run(self):
+        """This runs in the background thread"""
+        try:
+            # Generate AI response
+            ai_response = self.chatbot.generate(self.user_message)
+            self.response_ready.emit(ai_response)
+            
+            # Check for plot triggers and generate plot if needed
+            plot_fig = None
+            
+            # Check for trigger markers
+            plot_fig = self.chat_view._check_trigger_markers(ai_response)
+            
+            # If no trigger markers, check old plot triggers
+            if not plot_fig:
+                plot_fig = self.chat_view._check_plot_triggers(ai_response, self.user_message)
+            
+            # Emit plot if generated
+            if plot_fig:
+                self.plot_ready.emit(plot_fig)
+            else:
+                self.plot_ready.emit(None)
+                
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+            
 class ChatView(QWidget):
     def __init__(self, parent=None, plot_view=None, open_dataset_callback=None):
         super().__init__(parent)
@@ -29,6 +75,19 @@ class ChatView(QWidget):
         model_dir = "Llama-3.2-1B"
         self.chatbot = Chatbot(model_dir=model_dir)
         
+        # Create worker thread
+        self.ai_worker = AIWorkerThread(self.chatbot, self.plotting_engine, self)
+        
+        # Connect signals
+        self.ai_worker.response_ready.connect(self._on_response_ready)
+        self.ai_worker.plot_ready.connect(self._on_plot_ready)
+        self.ai_worker.error_occurred.connect(self._on_error)
+        
+        # Track loading state
+        self.is_loading = False
+        self.pending_response = ""
+        self.pending_plot = None
+
         # Plot request mapping for backward compatibility
         self.plot_mapping = {
             'line graph': prepare_line_graph_accelerometer,
@@ -74,6 +133,65 @@ class ChatView(QWidget):
             'create a comparison between ok and ko conditions',
             'generate a feature relationship matrix',
         ])
+
+    def _show_loading_indicator(self):
+        """Show loading indicator"""
+        from PySide6.QtCore import QTimer
+        
+        # Create loading message
+        timestamp = datetime.now().strftime("%H:%M")
+        loading_text = f"[{timestamp}] AI Assistant: Thinking..."
+        
+        self.loading_label = QLabel(loading_text)
+        self.loading_label.setWordWrap(True)
+        self.loading_label.setAlignment(Qt.AlignLeft)
+        
+        # Style as loading
+        loading_font = QFont()
+        loading_font.setPointSize(12)
+        loading_font.setItalic(True)
+        self.loading_label.setFont(loading_font)
+        self.loading_label.setStyleSheet("color: #666666;")
+        
+        # Create container
+        self.loading_container = QWidget()
+        loading_layout = QVBoxLayout(self.loading_container)
+        loading_layout.addWidget(self.loading_label)
+        
+        # Add to chat
+        self.chat_layout.insertWidget(self.chat_layout.count() - 1, self.loading_container)
+        
+        # Animate dots
+        self.dot_count = 0
+        self.dots_timer = QTimer()
+        self.dots_timer.timeout.connect(self._update_loading_dots)
+        self.dots_timer.start(500)
+        
+        # Scroll to bottom
+        self._scroll_to_bottom()
+
+    def _update_loading_dots(self):
+        """Update loading animation"""
+        dots = "." * (self.dot_count % 4)
+        timestamp = datetime.now().strftime("%H:%M")
+        self.loading_label.setText(f"[{timestamp}] AI Assistant: Thinking{dots}")
+        self.dot_count += 1
+
+    def _hide_loading_indicator(self):
+        """Remove loading indicator"""
+        if hasattr(self, 'dots_timer'):
+            self.dots_timer.stop()
+            self.dots_timer.deleteLater()
+        if hasattr(self, 'loading_container'):
+            self.loading_container.setParent(None)
+            self.loading_container.deleteLater()
+
+    def _scroll_to_bottom(self):
+        """Scroll chat to bottom"""
+        QApplication.processEvents()  # Process pending events
+        self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
+        )
 
     def set_dataframe(self, df):
         # Store the dataframe
@@ -203,9 +321,13 @@ class ChatView(QWidget):
         )
 
     def _send_message(self):
-        """Send the current message"""
+        """Send message using async worker thread"""
         message = self.input_field.toPlainText().strip()
         if not message:
+            return
+        
+        # Prevent multiple simultaneous requests
+        if self.is_loading:
             return
         
         # Display user message
@@ -214,31 +336,36 @@ class ChatView(QWidget):
         # Clear input field
         self.input_field.clear()
         
-        # Get AI response
-        self._ai_reply(message)
+        # Show loading and start async processing
+        self.is_loading = True
+        self._show_loading_indicator()
+        
+        # Start worker thread
+        self.ai_worker.set_request(message, self)
+        self.ai_worker.start()
 
-    def _ai_reply(self, user_message: str):
-        """Get AI response and handle plot triggers"""
-        try:
-            # Get AI response using the correct method
-            ai_response = self.chatbot.generate(user_message)
+    # def _ai_reply(self, user_message: str):
+    #     """Get AI response and handle plot triggers"""
+    #     try:
+    #         # Get AI response using the correct method
+    #         ai_response = self.chatbot.generate(user_message)
             
-            # Check for new trigger markers first (e.g., [TRIGGER_PLOT:histogram])
-            plot_fig = self._check_trigger_markers(ai_response)
+    #         # Check for new trigger markers first (e.g., [TRIGGER_PLOT:histogram])
+    #         plot_fig = self._check_trigger_markers(ai_response)
             
-            # If no trigger markers found, check old plot triggers for backward compatibility
-            if not plot_fig:
-                plot_fig = self._check_plot_triggers(ai_response, user_message)
+    #         # If no trigger markers found, check old plot triggers for backward compatibility
+    #         if not plot_fig:
+    #             plot_fig = self._check_plot_triggers(ai_response, user_message)
             
-            # Clean the response by removing trigger markers before displaying
-            clean_response = self._clean_response_from_triggers(ai_response)
+    #         # Clean the response by removing trigger markers before displaying
+    #         clean_response = self._clean_response_from_triggers(ai_response)
             
-            # Display AI response with plot if available
-            self._append_message("AI Assistant", clean_response, Qt.AlignLeft, plot_fig)
+    #         # Display AI response with plot if available
+    #         self._append_message("AI Assistant", clean_response, Qt.AlignLeft, plot_fig)
             
-        except Exception as e:
-            error_msg = f"Error getting AI response: {str(e)}"
-            self._append_message("System", error_msg, Qt.AlignLeft)
+    #     except Exception as e:
+    #         error_msg = f"Error getting AI response: {str(e)}"
+    #         self._append_message("System", error_msg, Qt.AlignLeft)
 
     def _check_plot_triggers(self, ai_response: str, user_message: str):
         """Check AI response for keywords that should trigger plot display"""
@@ -534,3 +661,35 @@ class ChatView(QWidget):
         msg += "\n💡 You can now ask me to analyze specific features or create visualizations!"
         
         return msg
+    def _on_response_ready(self, ai_response):
+        """Handle AI response ready signal"""
+        # Store response and clean it
+        self.pending_response = self._clean_response_from_triggers(ai_response)
+
+    def _on_plot_ready(self, plot_fig):
+        """Handle plot ready signal"""
+        self.pending_plot = plot_fig
+        
+        # Once we have both response and plot status, display everything
+        self._finalize_response()
+
+    def _on_error(self, error_message):
+        """Handle error signal"""
+        self._hide_loading_indicator()
+        self.is_loading = False
+        
+        error_msg = f"Error getting AI response: {error_message}"
+        self._append_message("System", error_msg, Qt.AlignLeft)
+
+    def _finalize_response(self):
+        """Display the final response with plot if available"""
+        # Hide loading
+        self._hide_loading_indicator()
+        
+        # Display response with plot
+        self._append_message("AI Assistant", self.pending_response, Qt.AlignLeft, self.pending_plot)
+        
+        # Reset state
+        self.is_loading = False
+        self.pending_response = ""
+        self.pending_plot = None
