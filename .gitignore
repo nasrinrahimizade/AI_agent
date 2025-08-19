@@ -26,6 +26,7 @@ var/
 .installed.cfg
 *.egg
 Llama-3.2-1B/
+dataset/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

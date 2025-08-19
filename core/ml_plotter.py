@@ -198,7 +198,9 @@ class PlottingEngine:
             'features': [],
             'sensor': None,
             'statistic': None,
-            'comparison': True  # OK vs KO comparison by default
+            'comparison': True,  # OK vs KO comparison by default
+            'class_filter': None,  # NEW: Add class filtering
+            'file_paths': []       # NEW: Add custom file paths
         }
         
         # Detect plot types - prioritize line graphs (time series) and frequency analysis
@@ -213,6 +215,19 @@ class PlottingEngine:
         elif any(word in request for word in ['scatter', 'scatter plot']):
             result['plot_type'] = 'scatter'
         
+
+        # NEW: Detect class filtering
+        if any(word in request for word in ['only ok', 'just ok', 'ok only', 'ok class']):
+            result['class_filter'] = ['OK']
+        elif any(word in request for word in ['only ko', 'just ko', 'ko only', 'ko class']):
+            result['class_filter'] = ['KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
+        elif any(word in request for word in ['only ko_high', 'ko high', 'high ko']):
+            result['class_filter'] = ['KO_HIGH_2mm']
+        elif any(word in request for word in ['only ko_low_2mm', 'ko low 2mm']):
+            result['class_filter'] = ['KO_LOW_2mm']
+        elif any(word in request for word in ['only ko_low_4mm', 'ko low 4mm']):
+            result['class_filter'] = ['KO_LOW_4mm']
+
         # Detect sensors with precise matching
         sensor_keywords = {
             'temperature': ['temperature', 'temp', 'thermal'],
@@ -442,25 +457,232 @@ class PlottingEngine:
         plt.tight_layout()
         return fig
     
-    def plot_frequency_domain(self, features: Optional[List[str]] = None) -> plt.Figure:
-        """Generate frequency domain analysis using FFT"""
+    def get_sensor_file_config(self) -> Dict:
+        """Get sensor file configuration - make this configurable later"""
+        base_path = r"C:\Users\NSRRMZ01\Desktop\sdpnew\AI_agent\dataset\vel-fissa"
+        
+        return {
+            'base_path': base_path,
+            'class_folders': ['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm'],
+            'condition_folders': ['PMI_50rpm'],  # Can add more conditions
+            'sensors': {
+                'accelerometer': {
+                    'file_patterns': ['IIS2DH_ACC.csv', 'IIS3DWB_ACC.csv', 'ISM330DHCX_ACC.csv'],
+                    'columns': ['A_x [g]', 'A_y [g]', 'A_z [g]']
+                },
+                'microphone': {
+                    'file_patterns': ['IMP23ABSU_MIC.csv', 'IMP34DT05_MIC.csv'],
+                    'columns': ['MIC [dB]', 'MIC']
+                },
+                'gyroscope': {
+                    'file_patterns': ['ISM330DHCX_GYRO.csv'],
+                    'columns': ['G_x [dps]', 'G_y [dps]', 'G_z [dps]']
+                },
+                'magnetometer': {
+                    'file_patterns': ['IIS2MDC_MAG.csv'],
+                    'columns': ['M_x [mgauss]', 'M_y [mgauss]', 'M_z [mgauss]']
+                },
+                'temperature': {
+                    'file_patterns': ['HTS221_TEMP.csv', 'LPS22HH_TEMP.csv', 'STTS751_TEMP.csv'],
+                    'columns': ['TEMP [°C]', 'Temperature [°C]']
+                },
+                'humidity': {
+                    'file_patterns': ['HTS221_HUM.csv'],
+                    'columns': ['HUM [%]', 'Humidity [%]']
+                },
+                'pressure': {
+                    'file_patterns': ['LPS22HH_PRESS.csv'],
+                    'columns': ['PRESS [hPa]', 'Pressure [hPa]']
+                }
+            }
+        }
+
+
+    def plot_frequency_domain(self, features: Optional[List[str]] = None, sensor_type: str = None, class_filter: List[str] = None) -> plt.Figure:
+        """Generate frequency domain analysis using FFT from raw sensor data files"""
         
         if features is None or len(features) == 0:
             features = self.get_top_discriminative_features(n=4)
         
-        features = features[:4]  # Limit to 4 features
+        config = self.get_sensor_file_config()
+        # print(f"#################classes: {class_filter}")
         
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-        axes = axes.flatten()
+        # Determine which classes to plot
+        if class_filter:
+            classes_to_plot = class_filter
+            print(f"🎯 Filtering to classes: {classes_to_plot}")
+        else:
+            classes_to_plot = config['class_folders']
+        
+        # If we have a specific sensor type, try to load raw data
+        if sensor_type and sensor_type in config['sensors']:
+            sensor_config = config['sensors'][sensor_type]
+            
+            # Calculate total combinations: classes × sensor files
+            n_classes = len(classes_to_plot)
+            n_sensors = len(sensor_config['file_patterns'])
+            total_combinations = n_classes * n_sensors
+            
+            print(f"📊 Planning layout: {n_classes} classes × {n_sensors} sensors = {total_combinations} combinations")
+            
+            # Create subplots: each sensor file gets one row with 2 columns (linear + log)
+            rows = total_combinations
+            cols = 2  # Always linear + logarithmic
+            
+            fig, axes = plt.subplots(rows, cols, figsize=(15, 4*rows))
+            
+            # Ensure axes is always 2D
+            if rows == 1:
+                axes = axes.reshape(1, -1)
+            elif cols == 1:
+                axes = axes.reshape(-1, 1)
+            
+            current_row = 0
+            plots_created = 0
+            
+            for class_name in classes_to_plot:
+                print(f"📊 Processing class: {class_name}")
+                
+                for sensor_idx, file_pattern in enumerate(sensor_config['file_patterns']):
+                    sensor_name = file_pattern.replace('.csv', '').replace('_', ' ')
+                    data_loaded = False
+                    
+                    print(f"  🔍 Processing sensor file: {file_pattern}")
+                    
+                    for condition in config['condition_folders']:
+                        file_path = f"{config['base_path']}/{class_name}/{condition}/{file_pattern}"
+                        
+                        try:
+                            df = pd.read_csv(file_path)
+                            print(f"    ✅ Loaded: {file_path}")
+                            
+                            # Find time column
+                            time_cols = [col for col in df.columns if 'time' in col.lower()]
+                            if not time_cols:
+                                print(f"    ⚠️ No time column in {file_path}")
+                                continue
+                            time_col = time_cols[0]
+                            
+                            # Find signal column - try multiple column patterns
+                            signal_col = None
+                            for col_pattern in sensor_config['columns']:
+                                if col_pattern in df.columns:
+                                    signal_col = col_pattern
+                                    break
+                            
+                            if not signal_col:
+                                print(f"    ⚠️ No signal column found in {file_path}. Available: {df.columns.tolist()}")
+                                continue
+                                
+                            time = df[time_col].values
+                            signal = df[signal_col].values
+                            n = len(signal)
+                            
+                            print(f"    📈 Processing {n} data points from column '{signal_col}'")
+                            
+                            # Calculate sampling parameters
+                            if len(time) > 1:
+                                dt = np.mean(np.diff(time))
+                            else:
+                                dt = 1.0  # Default sampling interval
+                            
+                            # Perform FFT
+                            yf = fft(signal)
+                            xf = fftfreq(n, d=dt)
+                            
+                            # Plot positive frequencies only
+                            positive_freqs = xf[:n//2]
+                            positive_fft = np.abs(yf[:n//2])
+                            
+                            # Linear scale plot (left column)
+                            ax_linear = axes[current_row, 0]
+                            ax_linear.plot(positive_freqs, positive_fft, 
+                                        color=self.class_colors.get(class_name, 'blue'),
+                                        label=f'{class_name}', linewidth=1.5)
+                            ax_linear.set_title(f'{sensor_name} - {class_name}\n(Linear Scale)', fontsize=11, pad=10)
+                            ax_linear.set_xlabel('Frequency [Hz]')
+                            ax_linear.set_ylabel('Amplitude')
+                            ax_linear.grid(True, alpha=0.3)
+                            ax_linear.legend(fontsize=9)
+                            
+                            # Logarithmic scale plot (right column)
+                            ax_log = axes[current_row, 1]
+                            positive_fft_db = 20 * np.log10(positive_fft + 1e-12)  # Avoid log(0)
+                            ax_log.plot(positive_freqs, positive_fft_db, 
+                                    color=self.class_colors.get(class_name, 'blue'),
+                                    label=f'{class_name}', linewidth=1.5)
+                            ax_log.set_title(f'{sensor_name} - {class_name}\n(Log Scale dB)', fontsize=11, pad=10)
+                            ax_log.set_xlabel('Frequency [Hz]')
+                            ax_log.set_ylabel('Amplitude [dB]')
+                            ax_log.grid(True, alpha=0.3)
+                            ax_log.legend(fontsize=9)
+                            
+                            plots_created += 1
+                            data_loaded = True
+                            print(f"    ✅ Plotted row {current_row}: {sensor_name} - {class_name}")
+                            break  # Break condition loop once file is loaded
+                            
+                        except Exception as e:
+                            print(f"    ❌ Could not load {file_path}: {e}")
+                            continue
+                    
+                    if not data_loaded:
+                        print(f"    ❌ No data loaded for {class_name} - {file_pattern}")
+                        # Hide empty row
+                        axes[current_row, 0].set_visible(False)
+                        axes[current_row, 1].set_visible(False)
+                    
+                    current_row += 1  # Always move to next row, whether data was loaded or not
+            
+            # Create title based on filtering
+            if class_filter:
+                title_suffix = f" - {', '.join(class_filter)} Classes"
+            else:
+                title_suffix = " - All Classes"
+            
+            plt.suptitle(f'{sensor_type.title()} Frequency Analysis{title_suffix}', fontsize=16, y=0.98)
+            plt.tight_layout(rect=[0, 0.02, 1, 0.96])  # Leave space for suptitle
+            
+            print(f"🎯 Final result: Created {plots_created} plots in {current_row} rows")
+            return fig
+        
+        # Fallback to feature matrix method
+        else:
+            print("🔄 Falling back to feature matrix data")
+            return self._fallback_frequency_plot(features, class_filter)
+
+    def _fallback_frequency_plot(self, features: Optional[List[str]] = None, class_filter: List[str] = None) -> plt.Figure:
+        """Fallback frequency plot using feature matrix data when raw data fails"""
+        
+        if features is None or len(features) == 0:
+            features = self.get_top_discriminative_features(n=4)
+        
+        # Remove the 4-feature limit - use all available features
+        print(f"🔄 Fallback: Using {len(features)} features")
+        
+        # Filter data by class if specified
+        if class_filter:
+            filtered_df = self.df[self.df['label'].isin(class_filter)]
+            print(f"🔄 Fallback: Using {len(filtered_df)} samples from classes {class_filter}")
+        else:
+            filtered_df = self.df
+        
+        # Calculate subplot layout for all features
+        n_features = len(features)
+        cols = 2  # Linear + Log
+        rows = n_features
+        
+        fig, axes = plt.subplots(rows, cols, figsize=(12, 3*rows))
+        
+        # Ensure axes is always 2D
+        if rows == 1:
+            axes = axes.reshape(1, -1)
+        elif cols == 1:
+            axes = axes.reshape(-1, 1)
         
         for i, feature in enumerate(features):
-            if i >= 4:
-                break
-                
-            ax = axes[i]
-            
-            # Get data for FFT
-            all_data = self.df[feature].dropna().values
+            # Get data for FFT from filtered dataset
+            all_data = filtered_df[feature].dropna().values
             
             if len(all_data) > 1:
                 # Perform FFT
@@ -469,20 +691,44 @@ class PlottingEngine:
                 
                 # Plot magnitude spectrum
                 magnitude = np.abs(fft_result)
-                ax.plot(freqs[:len(freqs)//2], magnitude[:len(freqs)//2])
-                ax.set_title(f'{feature.replace("_", " ").title()} Frequency Spectrum')
-                ax.set_xlabel('Frequency')
-                ax.set_ylabel('Magnitude')
-                ax.grid(True, alpha=0.3)
+                
+                # Linear plot
+                ax_linear = axes[i, 0]
+                ax_linear.plot(freqs[:len(freqs)//2], magnitude[:len(freqs)//2])
+                
+                # Add class info to title if filtering
+                if class_filter:
+                    title_suffix = f" - {', '.join(class_filter)}"
+                else:
+                    title_suffix = ""
+                    
+                ax_linear.set_title(f'{feature.replace("_", " ").title()}\nFrequency Spectrum (Linear){title_suffix}', fontsize=10)
+                ax_linear.set_xlabel('Frequency')
+                ax_linear.set_ylabel('Amplitude')
+                ax_linear.grid(True, alpha=0.3)
+                
+                # Logarithmic plot
+                ax_log = axes[i, 1]
+                magnitude_db = 20 * np.log10(magnitude[:len(freqs)//2] + 1e-12)
+                ax_log.plot(freqs[:len(freqs)//2], magnitude_db)
+                ax_log.set_title(f'{feature.replace("_", " ").title()}\nFrequency Spectrum (Log dB){title_suffix}', fontsize=10)
+                ax_log.set_xlabel('Frequency')
+                ax_log.set_ylabel('Amplitude [dB]')
+                ax_log.grid(True, alpha=0.3)
+            else:
+                # Hide empty plots
+                axes[i, 0].set_visible(False)
+                axes[i, 1].set_visible(False)
         
-        # Hide empty subplots
-        for i in range(len(features), 4):
-            axes[i].set_visible(False)
+        # Create title based on filtering
+        if class_filter:
+            title_suffix = f" - {', '.join(class_filter)} Only"
+        else:
+            title_suffix = " - All Classes"
         
-        plt.suptitle('Frequency Domain Analysis', fontsize=16)
-        plt.tight_layout()
+        plt.suptitle(f'Frequency Domain Analysis (Feature Matrix){title_suffix}', fontsize=16)
+        plt.tight_layout(rect=[0, 0.02, 1, 0.96])
         return fig
-    
     def plot_scatter(self, features: Optional[List[str]] = None) -> plt.Figure:
         """Generate scatter plots showing feature relationships"""
         
@@ -558,9 +804,12 @@ class PlottingEngine:
         if parsed['plot_type'] == 'timeseries':
             print(f"📈 Generating line graph (time series)")
             return self.plot_time_series(parsed['features'])
+        # elif parsed['plot_type'] == 'frequency':
+        #     print(f"📡 Generating frequency domain plot")
+        #     return self.plot_frequency_domain(parsed['features'])
         elif parsed['plot_type'] == 'frequency':
             print(f"📡 Generating frequency domain plot")
-            return self.plot_frequency_domain(parsed['features'])
+            return self.plot_frequency_domain(parsed['features'], parsed['sensor'], parsed['class_filter'])
         elif parsed['plot_type'] == 'histogram':
             print(f"📊 Generating histogram plot")
             return self.plot_feature_comparison(parsed['features'], 'histogram')
@@ -657,3 +906,4 @@ def prepare_statistics_summary_plot():
     """Create a summary plot showing overall statistics"""
     engine = get_plotting_engine()
     return engine.plot_time_series(engine.get_top_discriminative_features(n=4))
+
