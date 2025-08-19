@@ -216,6 +216,8 @@ class PlottingEngine:
             result['plot_type'] = 'correlation'
         elif any(word in request for word in ['scatter', 'scatter plot']):
             result['plot_type'] = 'scatter'
+        elif any(word in request for word in ['sensors', 'available', 'list', 'what', 'show', 'info']):
+            result['plot_type'] = 'sensor_info'
         
 
         # NEW: Detect class filtering
@@ -258,10 +260,41 @@ class PlottingEngine:
                         best_match = sensor_type
                         print(f"🔍 New best match: '{sensor_type}' with score {score}")
         
+        # Extract specific sensor names from the request (e.g., "STTS751", "HTS221")
+        specific_sensor_names = []
+        for col in self.feature_columns:
+            sensor_name = col.split('_')[0]  # Extract sensor name from feature column
+            if sensor_name.lower() in request.lower():
+                specific_sensor_names.append(sensor_name)
+        
+        # Remove duplicates while preserving order
+        specific_sensor_names = list(dict.fromkeys(specific_sensor_names))
+        
         if best_match:
             result['sensor'] = best_match
             print(f"🎯 Final sensor match: {best_match}")
-            result['features'] = self.get_sensor_features(best_match)
+            
+            # If specific sensor names were mentioned, validate them
+            if specific_sensor_names:
+                print(f"🔍 Specific sensor names detected: {specific_sensor_names}")
+                # Validate the first mentioned sensor
+                sensor_name = specific_sensor_names[0]
+                exists, message, available_sensors = self.validate_sensor_exists(sensor_name, best_match)
+                
+                if not exists:
+                    # Store validation error for later handling
+                    result['validation_error'] = message
+                    result['available_sensors'] = available_sensors
+                    print(f"❌ Validation failed: {message}")
+                else:
+                    print(f"✅ Validation passed: {message}")
+                    # Get features only for the validated sensor
+                    result['features'] = [col for col in self.get_sensor_features(best_match) 
+                                       if sensor_name in col]
+            else:
+                # No specific sensor mentioned, get all features for the sensor type
+                result['features'] = self.get_sensor_features(best_match)
+            
             print(f"🎯 Detected sensor: {best_match}")
         else:
             print(f"⚠️ No sensor detected in request")
@@ -288,6 +321,53 @@ class PlottingEngine:
                                 result['sensor'] = 'magnetometer'
                             elif 'mic' in col.lower():
                                 result['sensor'] = 'microphone'
+        
+        # If we have specific sensor names but no sensor type, try to infer the type
+        if specific_sensor_names and not result['sensor']:
+            print(f"🔍 Inferring sensor type from specific sensor names: {specific_sensor_names}")
+            # Check what type of sensor the first mentioned sensor is
+            for sensor_name in specific_sensor_names:
+                for col in self.feature_columns:
+                    if sensor_name in col:
+                        # Determine sensor type from the feature
+                        if 'temp' in col.lower():
+                            result['sensor'] = 'temperature'
+                            break
+                        elif 'hum' in col.lower():
+                            result['sensor'] = 'humidity'
+                            break
+                        elif 'press' in col.lower():
+                            result['sensor'] = 'pressure'
+                            break
+                        elif 'acc' in col.lower():
+                            result['sensor'] = 'accelerometer'
+                            break
+                        elif 'gyro' in col.lower():
+                            result['sensor'] = 'gyroscope'
+                            break
+                        elif 'mag' in col.lower():
+                            result['sensor'] = 'magnetometer'
+                            break
+                        elif 'mic' in col.lower():
+                            result['sensor'] = 'microphone'
+                            break
+                if result['sensor']:
+                    break
+            
+            # If we found a sensor type, validate the specific sensor
+            if result['sensor']:
+                sensor_name = specific_sensor_names[0]
+                exists, message, available_sensors = self.validate_sensor_exists(sensor_name, result['sensor'])
+                
+                if not exists:
+                    result['validation_error'] = message
+                    result['available_sensors'] = available_sensors
+                    print(f"❌ Validation failed: {message}")
+                else:
+                    print(f"✅ Validation passed: {message}")
+                    # Get features only for the validated sensor
+                    result['features'] = [col for col in self.get_sensor_features(result['sensor']) 
+                                       if sensor_name in col]
         
         # Detect statistics
         stats = ['mean', 'median', 'max', 'min', 'std', 'variance', 'var']
@@ -863,6 +943,20 @@ class PlottingEngine:
         parsed = self.parse_plot_request(request)
         print(f"🎯 Parsed request: {parsed}")
         
+        # Check for validation errors before proceeding
+        if 'validation_error' in parsed:
+            print(f"❌ Validation failed: {parsed['validation_error']}")
+            print(f"📊 Showing error information instead of requested plot")
+            # Create an error plot instead of the requested plot
+            return self._create_error_plot(parsed['validation_error'], parsed['available_sensors'])
+        
+        # Check if we have features to plot
+        if not parsed['features']:
+            error_msg = "No features found for the requested sensor type. Please check your request."
+            print(f"❌ No features available: {error_msg}")
+            print(f"📊 Showing error information instead of requested plot")
+            return self._create_error_plot(error_msg, [])
+        
         # Generate appropriate plot - all plots are now line graphs or specialized visualizations
         if parsed['plot_type'] == 'timeseries':
             print(f"📈 Generating line graph (time series)")
@@ -887,6 +981,9 @@ class PlottingEngine:
         elif parsed['plot_type'] == 'scatter':
             print(f"💫 Generating scatter plot")
             return self.plot_scatter(parsed['features'])
+        elif parsed['plot_type'] == 'sensor_info':
+            print(f"📊 Generating sensor information plot")
+            return self.create_sensor_info_plot()
         else:
             # Default to line graph (time series)
             print(f"🔄 Defaulting to line graph (time series)")
@@ -894,6 +991,457 @@ class PlottingEngine:
             if fig is not None:
                 return fig
             return self.plot_time_series(parsed['features'])
+
+    def validate_sensor_exists(self, sensor_name: str, sensor_type: str) -> tuple[bool, str, list]:
+        """
+        Validate if a specific sensor exists for the requested sensor type
+        Returns: (exists, message, available_sensors)
+        """
+        sensor_name_lower = sensor_name.lower()
+        sensor_type_lower = sensor_type.lower()
+        
+        print(f"🔍 Validating sensor '{sensor_name}' for type '{sensor_type}'")
+        
+        # Get all available sensors for this type
+        available_sensors = self.get_available_sensors_for_type(sensor_type_lower)
+        
+        if not available_sensors:
+            return False, f"No {sensor_type} sensors found in the dataset", []
+        
+        # Check if the specific sensor exists
+        sensor_exists = any(sensor_name_lower in sensor.lower() for sensor in available_sensors)
+        
+        if sensor_exists:
+            return True, f"✅ Sensor {sensor_name} found for {sensor_type}", available_sensors
+        else:
+            # Get helpful suggestions
+            suggestions = self.get_sensor_suggestions(sensor_name, sensor_type)
+            error_msg = f"❌ Sensor {sensor_name} not found for {sensor_type}.\n\nAvailable {sensor_type} sensors: {', '.join(available_sensors)}\n\n💡 Suggestions:\n{suggestions}"
+            return False, error_msg, available_sensors
+    
+    def _create_error_plot(self, error_message: str, available_sensors: list) -> plt.Figure:
+        """Create an informative error plot when validation fails"""
+        fig, ax = plt.subplots(figsize=(16, 12))
+        
+        # Set background color with gradient effect
+        ax.set_facecolor('#f8f9fa')
+        fig.patch.set_facecolor('#f8f9fa')
+        
+        # Create a subtle background pattern
+        for i in range(0, 100, 10):
+            alpha = 0.02
+            ax.axhline(y=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
+            ax.axvline(x=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
+        
+        # Add main error icon and title
+        ax.text(0.5, 0.92, '⚠️', 
+                fontsize=48, ha='center', va='center',
+                color='#ffc107', transform=ax.transAxes)
+        
+        ax.text(0.5, 0.82, 'Request Cannot Be Completed', 
+                fontsize=28, fontweight='bold', ha='center', va='center',
+                color='#dc3545', transform=ax.transAxes)
+        
+        # Add subtitle
+        ax.text(0.5, 0.75, 'The requested sensor or data is not available \n', 
+                fontsize=16, ha='center', va='center',
+                color='#6c757d', transform=ax.transAxes, style='italic')
+        
+        # Add detailed error message in a prominent box
+        ax.text(0.5, 0.65, error_message, 
+                fontsize=14, ha='center', va='center',
+                color='#495057', transform=ax.transAxes,
+                bbox=dict(boxstyle="round,pad=0.4", facecolor='white', 
+                         edgecolor='#dc3545', linewidth=2, alpha=0.95))
+        
+        # Add available sensors information if any
+        if available_sensors:
+            ax.text(0.5, 0.52, f'✅ Available sensors for this type:', 
+                    fontsize=16, fontweight='bold', ha='center', va='center',
+                    color='#28a745', transform=ax.transAxes)
+            
+            # Format sensor list nicely
+            sensor_text = ', '.join(available_sensors)
+            if len(sensor_text) > 60:
+                # Split long lists into multiple lines
+                words = sensor_text.split(', ')
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line + word) > 60:
+                        lines.append(current_line.strip())
+                        current_line = word
+                    else:
+                        current_line += (", " if current_line else "") + word
+                if current_line:
+                    lines.append(current_line.strip())
+                
+                y_pos = 0.45
+                for line in lines:
+                    ax.text(0.5, y_pos, line, 
+                            fontsize=14, ha='center', va='center',
+                            color='#28a745', transform=ax.transAxes,
+                            bbox=dict(boxstyle="round,pad=0.3", facecolor='#d4edda', 
+                                     edgecolor='#c3e6cb', alpha=0.9))
+                    y_pos -= 0.06
+            else:
+                ax.text(0.5, 0.45, sensor_text, 
+                        fontsize=14, ha='center', va='center',
+                        color='#28a745', transform=ax.transAxes,
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor='#d4edda', 
+                                 edgecolor='#c3e6cb', alpha=0.9))
+        
+        # Add comprehensive sensor summary in a organized table format
+        all_sensors = self.get_all_available_sensors_summary()
+        if all_sensors:
+            ax.text(0.5, 0.35, '📊 Complete Sensor Inventory', 
+                    fontsize=18, fontweight='bold', ha='center', va='center',
+                    color='#2c3e50', transform=ax.transAxes)
+            
+            # Create a more organized layout
+            y_pos = 0.28
+            for sensor_type, sensors in all_sensors.items():
+                # Sensor type header
+                ax.text(0.15, y_pos, f'🔍 {sensor_type.title()}', 
+                        fontsize=16, fontweight='bold', ha='left', va='center',
+                        color='#3498db', transform=ax.transAxes)
+                
+                # Sensor list
+                sensor_text = ', '.join(sensors)
+                if len(sensor_text) > 50:
+                    # Split long lists
+                    words = sensor_text.split(', ')
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + word) > 50:
+                            lines.append(current_line.strip())
+                            current_line = word
+                        else:
+                            current_line += (", " if current_line else "") + word
+                    if current_line:
+                        lines.append(current_line.strip())
+                    
+                    for line in lines:
+                        ax.text(0.25, y_pos - 0.03, f'• {line}', 
+                                fontsize=12, ha='left', va='center',
+                                color='#495057', transform=ax.transAxes,
+                                bbox=dict(boxstyle="round,pad=0.2", facecolor='#e9ecef', 
+                                         edgecolor='#dee2e6', alpha=0.8))
+                        y_pos -= 0.04
+                else:
+                    ax.text(0.25, y_pos - 0.03, f'• {sensor_text}', 
+                            fontsize=12, ha='left', va='center',
+                            color='#495057', transform=ax.transAxes,
+                            bbox=dict(boxstyle="round,pad=0.2", facecolor='#e9ecef', 
+                                     edgecolor='#dee2e6', alpha=0.8))
+                    y_pos -= 0.04
+                
+                y_pos -= 0.02  # Extra space between sensor types
+        
+        # Remove axes
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+        
+        plt.tight_layout()
+        return fig
+
+    def get_available_sensors_for_type(self, sensor_type: str) -> list:
+        """Get list of available sensor names for a specific sensor type"""
+        sensor_type_lower = sensor_type.lower()
+        
+        # Extract unique sensor names from feature columns
+        sensor_names = set()
+        
+        for col in self.feature_columns:
+            if self._is_feature_for_sensor(col, sensor_type_lower):
+                # Extract sensor name from feature column (e.g., "HTS221_HUM_HUM_mean" -> "HTS221")
+                parts = col.split('_')
+                if len(parts) >= 2:
+                    sensor_names.add(parts[0])
+        
+        return sorted(list(sensor_names))
+
+    def get_all_available_sensors_summary(self) -> dict:
+        """Get a summary of all available sensors organized by type"""
+        sensor_summary = {}
+        
+        sensor_types = ['temperature', 'humidity', 'pressure', 'accelerometer', 'gyroscope', 'magnetometer', 'microphone']
+        
+        for sensor_type in sensor_types:
+            sensors = self.get_available_sensors_for_type(sensor_type)
+            if sensors:
+                sensor_summary[sensor_type] = sensors
+        
+        return sensor_summary
+
+    def get_sensor_suggestions(self, requested_sensor: str, sensor_type: str = None) -> str:
+        """Get helpful suggestions when a sensor is not found"""
+        suggestions = []
+        
+        # Get all available sensors
+        all_sensors = self.get_all_available_sensors_summary()
+        
+        if sensor_type and sensor_type in all_sensors:
+            # Suggest sensors of the same type
+            available_same_type = all_sensors[sensor_type]
+            if available_same_type:
+                suggestions.append(f"Available {sensor_type} sensors: {', '.join(available_same_type)}")
+        
+        # Suggest similar sensor names (fuzzy matching)
+        similar_sensors = []
+        for sensor_type_name, sensors in all_sensors.items():
+            for sensor in sensors:
+                # Simple similarity check (common substrings)
+                if any(part in sensor.lower() for part in requested_sensor.lower().split('_')) or \
+                   any(part in requested_sensor.lower() for part in sensor.lower().split('_')):
+                    similar_sensors.append(f"{sensor} ({sensor_type_name})")
+        
+        if similar_sensors:
+            suggestions.append(f"Similar sensors found: {', '.join(similar_sensors[:5])}")
+        
+        # General suggestions
+        if all_sensors:
+            total_sensors = sum(len(sensors) for sensors in all_sensors.values())
+            suggestions.append(f"Total sensors available: {total_sensors}")
+            suggestions.append("Sensor types: " + ", ".join(all_sensors.keys()))
+        
+        return "\n".join(suggestions) if suggestions else "No suggestions available"
+
+    def create_sensor_info_plot(self) -> plt.Figure:
+        """Create an informational plot showing all available sensors"""
+        fig, ax = plt.subplots(figsize=(18, 14))
+        
+        # Set background color with subtle pattern
+        ax.set_facecolor('#f8f9fa')
+        fig.patch.set_facecolor('#f8f9fa')
+        
+        # Create subtle background pattern
+        for i in range(0, 100, 15):
+            alpha = 0.015
+            ax.axhline(y=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
+            ax.axvline(x=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
+        
+        # Add decorative header
+        ax.text(0.5, 0.97, '🔍', 
+                fontsize=36, ha='center', va='center',
+                color='#3498db', transform=ax.transAxes)
+        
+        # Add main title
+        ax.text(0.5, 0.92, 'Available Sensors in Dataset', 
+                fontsize=32, fontweight='bold', ha='center', va='center',
+                color='#2c3e50', transform=ax.transAxes)
+        
+        # Add subtitle
+        ax.text(0.5, 0.87, 'Complete inventory of all sensors and their data types', 
+                fontsize=16, ha='center', va='center',
+                color='#6c757d', transform=ax.transAxes, style='italic')
+        
+        # Get all available sensors
+        all_sensors = self.get_all_available_sensors_summary()
+        
+        if not all_sensors:
+            # No sensors found message
+            ax.text(0.5, 0.5, '❌ No sensors found in dataset', 
+                    fontsize=20, ha='center', va='center',
+                    color='#dc3545', transform=ax.transAxes,
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor='#f8d7da', 
+                             edgecolor='#f5c6cb', alpha=0.9))
+        else:
+            # Create a more organized, table-like layout
+            y_pos = 0.78
+            
+            # Add section header
+            ax.text(0.5, y_pos, '📊 Sensor Categories', 
+                    fontsize=20, fontweight='bold', ha='center', va='center',
+                    color='#495057', transform=ax.transAxes)
+            y_pos -= 0.05
+            
+            for sensor_type, sensors in all_sensors.items():
+                # Sensor type header with icon and color coding
+                type_icons = {
+                    'temperature': '🌡️',
+                    'humidity': '💧',
+                    'pressure': '🌪️',
+                    'accelerometer': '📱',
+                    'gyroscope': '🌀',
+                    'magnetometer': '🧲',
+                    'microphone': '🎤'
+                }
+                
+                icon = type_icons.get(sensor_type, '🔍')
+                color = '#3498db'
+                
+                # Create a header box for each sensor type
+                ax.text(0.08, y_pos, f'{icon} {sensor_type.title()}', 
+                        fontsize=18, fontweight='bold', ha='left', va='center',
+                        color=color, transform=ax.transAxes,
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor='#ecf0f1', 
+                                 edgecolor=color, linewidth=2, alpha=0.9))
+                
+                # Count sensors for this type
+                sensor_count = len(sensors)
+                ax.text(0.85, y_pos, f'({sensor_count} sensor{"s" if sensor_count != 1 else ""})', 
+                        fontsize=14, ha='right', va='center',
+                        color='#7f8c8d', transform=ax.transAxes, style='italic')
+                
+                y_pos -= 0.04
+                
+                # Sensor list in organized format
+                sensor_text = ', '.join(sensors)
+                if len(sensor_text) > 70:
+                    # Split long lists into multiple lines
+                    words = sensor_text.split(', ')
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + word) > 70:
+                            lines.append(current_line.strip())
+                            current_line = word
+                        else:
+                            current_line += (", " if current_line else "") + word
+                    if current_line:
+                        lines.append(current_line.strip())
+                    
+                    for line in lines:
+                        ax.text(0.12, y_pos, f'• {line}', 
+                                fontsize=13, ha='left', va='center',
+                                color='#2c3e50', transform=ax.transAxes,
+                                bbox=dict(boxstyle="round,pad=0.25", facecolor='#ffffff', 
+                                         edgecolor='#dee2e6', alpha=0.95))
+                        y_pos -= 0.035
+                else:
+                    ax.text(0.12, y_pos, f'• {sensor_text}', 
+                            fontsize=13, ha='left', va='center',
+                            color='#2c3e50', transform=ax.transAxes,
+                            bbox=dict(boxstyle="round,pad=0.25", facecolor='#ffffff', 
+                                     edgecolor='#dee2e6', alpha=0.95))
+                    y_pos -= 0.035
+                
+                y_pos -= 0.025  # Extra space between sensor types
+            
+            # Add summary statistics
+            total_sensors = sum(len(sensors) for sensors in all_sensors.values())
+            ax.text(0.5, y_pos - 0.05, f'📈 Summary: {len(all_sensors)} sensor types, {total_sensors} total sensors', 
+                    fontsize=16, fontweight='bold', ha='center', va='center',
+                    color='#27ae60', transform=ax.transAxes,
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor='#d5f4e6', 
+                             edgecolor='#27ae60', alpha=0.9))
+        
+        # Add footer with usage instructions
+        ax.text(0.5, 0.04, '💡 Copy and paste these sensor names in your plot requests', 
+                fontsize=14, ha='center', va='center',
+                color='#6c757d', transform=ax.transAxes, style='italic',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor='#fff3cd', 
+                         edgecolor='#ffeaa7', alpha=0.9))
+        
+        # Remove axes
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+        
+        plt.tight_layout()
+        return fig
+
+    def get_validation_response_text(self, request: str, parsed_result: dict) -> str:
+        """Get a clear text response explaining why the request failed and what to do next"""
+        if 'validation_error' in parsed_result:
+            error_msg = parsed_result['validation_error']
+            available_sensors = parsed_result.get('available_sensors', [])
+            
+            response = f"❌ **Request Cannot Be Completed**\n\n"
+            response += f"**Your request:** {request}\n\n"
+            response += f"**Why it failed:** {error_msg}\n\n"
+            
+            if available_sensors:
+                response += f"**Available sensors for this type:** {', '.join(available_sensors)}"
+            
+            # Get all available sensors for comprehensive guidance
+            all_sensors = self.get_all_available_sensors_summary()
+            if all_sensors:
+                response += "**📊 Complete Sensor Inventory:**\n"
+                for sensor_type, sensors in all_sensors.items():
+                    response += f"• **{sensor_type.title()}:** {', '.join(sensors)}\n"
+                response += "\n"
+            
+            response += "**💡 What to do next:**\n"
+            response += "1. Use one of the available sensor names listed above\n"
+            response += "2. Make sure the sensor type matches your request (e.g., humidity, temperature)\n"
+            response += "3. Try a simpler request like 'Show me what sensors are available'\n\n"
+            
+            response += "**Example valid requests:**\n"
+            if available_sensors:
+                first_sensor = available_sensors[0]
+                sensor_type = parsed_result.get('sensor', 'this type')
+                response += f"• 'Create a plot of {sensor_type} data from {first_sensor}'\n"
+            response += "• 'Show me what sensors are available'\n"
+            response += "• 'List all temperature sensors'\n"
+            
+            return response
+        
+        elif not parsed_result.get('features'):
+            response = f"❌ **Request Cannot Be Completed**\n\n"
+            response += f"**Your request:** {request}\n\n"
+            response += "**Why it failed:** No features found for the requested sensor type.\n\n"
+            
+            # Get all available sensors for guidance
+            all_sensors = self.get_all_available_sensors_summary()
+            if all_sensors:
+                response += "**📊 Available Sensors:**\n"
+                for sensor_type, sensors in all_sensors.items():
+                    response += f"• **{sensor_type.title()}:** {', '.join(sensors)}\n"
+                response += "\n"
+            
+            response += "**💡 What to do next:**\n"
+            response += "• Use specific sensor names from the list above\n"
+            response += "• Try 'Show me what sensors are available' to see everything\n"
+            
+            return response
+        
+        return "✅ Request processed successfully!"
+
+    def will_request_fail(self, request: str) -> tuple[bool, str, dict]:
+        """
+        Check if a request will fail validation before processing it
+        Returns: (will_fail, reason, parsed_result)
+        """
+        # Parse the request without creating plots
+        parsed = self.parse_plot_request(request)
+        
+        if 'validation_error' in parsed:
+            return True, "Sensor validation failed", parsed
+        
+        if not parsed.get('features'):
+            return True, "No features available for requested sensor type", parsed
+        
+        return False, "Request should succeed", parsed
+
+    def get_request_summary(self, request: str) -> str:
+        """Get a summary of what the request will do or why it will fail"""
+        will_fail, reason, parsed = self.will_request_fail(request)
+        
+        if will_fail:
+            return self.get_validation_response_text(request, parsed)
+        
+        # Request will succeed
+        sensor_type = parsed.get('sensor', 'unknown')
+        plot_type = parsed.get('plot_type', 'unknown')
+        features_count = len(parsed.get('features', []))
+        
+        summary = f"✅ **Request Analysis**\n\n"
+        summary += f"**Your request:** {request}\n\n"
+        summary += f"**What will be created:** {plot_type.replace('_', ' ').title()} plot\n"
+        summary += f"**Sensor type:** {sensor_type.title()}\n"
+        summary += f"**Features to plot:** {features_count} features\n"
+        
+        if features_count > 0:
+            summary += f"**Sample features:** {', '.join(parsed['features'][:3])}"
+            if features_count > 3:
+                summary += f" and {features_count - 3} more"
+            summary += "\n"
+        
+        return summary
 
     def _detect_dataset_root(self) -> str:
         """Detect dataset root directory dynamically."""
