@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import os
+import glob
 import seaborn as sns
 from scipy import stats
 from scipy.fft import fft, fftfreq
@@ -459,12 +461,37 @@ class PlottingEngine:
     
     def get_sensor_file_config(self) -> Dict:
         """Get sensor file configuration - make this configurable later"""
-        base_path = r"C:\Users\NSRRMZ01\Desktop\sdpnew\AI_agent\dataset\vel-fissa"
-        
+        # Detect dataset root dynamically
+        base_path = self._detect_dataset_root()
+
+        # Detect class folders and condition folders dynamically if possible
+        class_folders: List[str] = ['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
+        condition_folders: List[str] = ['PMI_50rpm']
+
+        if base_path and os.path.isdir(base_path):
+            try:
+                # Classes are the top-level directories
+                detected_classes = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+                if detected_classes:
+                    class_folders = detected_classes
+                # Conditions are subdirectories under the first existing class
+                class_to_scan = None
+                for cand in ['OK'] + detected_classes:
+                    cand_path = os.path.join(base_path, cand)
+                    if os.path.isdir(cand_path):
+                        class_to_scan = cand_path
+                        break
+                if class_to_scan:
+                    detected_conditions = [d for d in os.listdir(class_to_scan) if os.path.isdir(os.path.join(class_to_scan, d))]
+                    if detected_conditions:
+                        condition_folders = detected_conditions
+            except Exception:
+                pass
+
         return {
             'base_path': base_path,
-            'class_folders': ['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm'],
-            'condition_folders': ['PMI_50rpm'],  # Can add more conditions
+            'class_folders': class_folders,
+            'condition_folders': condition_folders,  # Can add more conditions
             'sensors': {
                 'accelerometer': {
                     'file_patterns': ['IIS2DH_ACC.csv', 'IIS3DWB_ACC.csv', 'ISM330DHCX_ACC.csv'],
@@ -517,6 +544,11 @@ class PlottingEngine:
         # If we have a specific sensor type, try to load raw data
         if sensor_type and sensor_type in config['sensors']:
             sensor_config = config['sensors'][sensor_type]
+
+            # If dataset root missing, fallback
+            if not config['base_path'] or not os.path.isdir(config['base_path']):
+                print("⚠️ Dataset root not found for frequency plot. Falling back.")
+                return self._fallback_frequency_plot(features, class_filter)
             
             # Calculate total combinations: classes × sensor files
             n_classes = len(classes_to_plot)
@@ -550,7 +582,7 @@ class PlottingEngine:
                     print(f"  🔍 Processing sensor file: {file_pattern}")
                     
                     for condition in config['condition_folders']:
-                        file_path = f"{config['base_path']}/{class_name}/{condition}/{file_pattern}"
+                        file_path = os.path.join(config['base_path'], class_name, condition, file_pattern)
                         
                         try:
                             df = pd.read_csv(file_path)
@@ -569,7 +601,32 @@ class PlottingEngine:
                                 if col_pattern in df.columns:
                                     signal_col = col_pattern
                                     break
-                            
+
+                            # Fallback: heuristic based on sensor type and column keywords
+                            if not signal_col:
+                                candidate_cols = [c for c in df.columns if c != time_col]
+                                keyword_map = {
+                                    'temperature': ['temp'],
+                                    'humidity': ['hum'],
+                                    'pressure': ['press'],
+                                    'accelerometer': ['a_x', 'a y', 'a_z', 'a_'],
+                                    'gyroscope': ['g_x', 'g y', 'g_z', 'g_'],
+                                    'magnetometer': ['m_x', 'm y', 'm_z', 'm_'],
+                                    'microphone': ['mic']
+                                }
+                                keys = keyword_map.get(sensor_type, [])
+                                for col in candidate_cols:
+                                    lname = col.lower()
+                                    if any(k in lname for k in keys):
+                                        signal_col = col
+                                        break
+                                # Last resort: first numeric non-time column
+                                if not signal_col:
+                                    for col in candidate_cols:
+                                        if pd.api.types.is_numeric_dtype(df[col]):
+                                            signal_col = col
+                                            break
+
                             if not signal_col:
                                 print(f"    ⚠️ No signal column found in {file_path}. Available: {df.columns.tolist()}")
                                 continue
@@ -803,6 +860,11 @@ class PlottingEngine:
         # Generate appropriate plot - all plots are now line graphs or specialized visualizations
         if parsed['plot_type'] == 'timeseries':
             print(f"📈 Generating line graph (time series)")
+            # Try dataset-driven time plot first (dynamic paths)
+            fig = self._plot_time_series_from_dataset(request)
+            if fig is not None:
+                return fig
+            # Fallback to feature_matrix-based time series
             return self.plot_time_series(parsed['features'])
         # elif parsed['plot_type'] == 'frequency':
         #     print(f"📡 Generating frequency domain plot")
@@ -822,7 +884,144 @@ class PlottingEngine:
         else:
             # Default to line graph (time series)
             print(f"🔄 Defaulting to line graph (time series)")
+            fig = self._plot_time_series_from_dataset(request)
+            if fig is not None:
+                return fig
             return self.plot_time_series(parsed['features'])
+
+    def _detect_dataset_root(self) -> str:
+        """Detect dataset root directory dynamically."""
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+            candidates = [
+                os.path.join(project_root, 'dataset', 'vel-fissa')
+            ]
+            for path in candidates:
+                if os.path.isdir(path):
+                    return path
+        except Exception:
+            pass
+        return ''
+
+    def _detect_labels_from_request(self, request: str) -> list:
+        """Extract label filters (e.g., OK, KO variants) from the natural language request."""
+        text = (request or '').lower()
+        labels = []
+        mapping = {
+            'ok': 'OK',
+            'ko_high_2mm': 'KO_HIGH_2mm',
+            'ko low 2mm': 'KO_LOW_2mm',
+            'ko_low_2mm': 'KO_LOW_2mm',
+            'ko low 4mm': 'KO_LOW_4mm',
+            'ko_low_4mm': 'KO_LOW_4mm',
+            'ko': 'KO'
+        }
+        for key, val in mapping.items():
+            if key in text:
+                labels.append(val)
+        # Deduplicate preserving order
+        seen = set()
+        filtered = []
+        for l in labels:
+            if l not in seen:
+                seen.add(l)
+                filtered.append(l)
+        return filtered
+
+    def _sensor_keywords(self, request: str) -> list:
+        text = (request or '').lower()
+        if any(k in text for k in ['temperature', 'temp']):
+            return ['temp']
+        if any(k in text for k in ['humidity', 'hum']):
+            return ['hum']
+        if any(k in text for k in ['pressure', 'press']):
+            return ['press']
+        if any(k in text for k in ['accelerometer', 'acc', 'acceleration']):
+            return ['acc']
+        if any(k in text for k in ['gyroscope', 'gyro']):
+            return ['gyro']
+        if any(k in text for k in ['magnetometer', 'mag']):
+            return ['mag']
+        if any(k in text for k in ['microphone', 'mic', 'audio']):
+            return ['mic']
+        return []
+
+    def _plot_time_series_from_dataset(self, request: str):
+        """Create a time plot directly from dataset CSVs (dynamic paths). Return Figure or None."""
+        dataset_root = self._detect_dataset_root()
+        if not dataset_root:
+            return None
+
+        labels = self._detect_labels_from_request(request)
+        if labels:
+            expanded = []
+            for l in labels:
+                if l == 'KO':
+                    expanded.extend(['KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm'])
+                else:
+                    expanded.append(l)
+            label_dirs = expanded
+        else:
+            label_dirs = ['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
+
+        sensor_kws = self._sensor_keywords(request)
+        if not sensor_kws:
+            return None
+
+        matched_files = []
+        try:
+            for label in label_dirs:
+                label_path = os.path.join(dataset_root, label)
+                if not os.path.isdir(label_path):
+                    continue
+                for csv_path in glob.iglob(os.path.join(label_path, '**', '*.csv'), recursive=True):
+                    name = os.path.basename(csv_path).lower()
+                    if any(kw in name for kw in sensor_kws):
+                        matched_files.append(csv_path)
+        except Exception:
+            return None
+
+        if not matched_files:
+            return None
+
+        max_plots = min(6, len(matched_files))
+        fig, axes = plt.subplots(max_plots, 1, figsize=(14, 3 * max_plots))
+        if max_plots == 1:
+            axes = [axes]
+
+        for i, path in enumerate(matched_files[:max_plots]):
+            try:
+                df = pd.read_csv(path)
+            except Exception:
+                continue
+
+            lower_cols = [c.lower() for c in df.columns]
+            time_col = None
+            for idx, c in enumerate(lower_cols):
+                if 'time' in c:
+                    time_col = df.columns[idx]
+                    break
+            value_cols = [c for c in df.columns if c != time_col]
+
+            ax = axes[i]
+            for col in value_cols:
+                try:
+                    if time_col is not None:
+                        ax.plot(df[time_col], df[col], label=col)
+                    else:
+                        ax.plot(df[col], label=col)
+                except Exception:
+                    continue
+            ax.set_title(f"{os.path.basename(path)}")
+            ax.set_xlabel(time_col if time_col else 'Sample Index')
+            ax.set_ylabel('Sensor Value')
+            ax.grid(True, alpha=0.3)
+            ax.legend(fontsize=8)
+
+        plt.suptitle('Time Series (dataset)', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        return fig
     
     def get_available_sensors(self) -> List[str]:
         """Get list of available sensors"""
