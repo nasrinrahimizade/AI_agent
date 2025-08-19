@@ -365,19 +365,25 @@ class PlottingEngine:
             
             # Only histogram plots are supported now
             if plot_type == 'histogram':
-                # Overlay per class
+                # Overlay per class; ensure every class appears in the legend even if no data
+                plotted_classes = []
                 for class_name in self.classes:
                     class_values = self.class_data[class_name][feature].dropna()
-                    if len(class_values) == 0:
-                        continue
-                    ax.hist(
-                        class_values,
-                        alpha=0.6,
-                        label=class_name,
-                        bins=20,
-                        color=self.class_colors.get(class_name, 'gray'),
-                        density=True
-                    )
+                    if len(class_values) > 0:
+                        ax.hist(
+                            class_values,
+                            alpha=0.6,
+                            label=class_name,
+                            bins=20,
+                            color=self.class_colors.get(class_name, 'gray'),
+                            density=True
+                        )
+                        plotted_classes.append(class_name)
+                # Add legend entries for classes with no data so they still show up
+                missing_classes = [c for c in self.classes if c not in plotted_classes]
+                for class_name in missing_classes:
+                    ax.plot([], [], color=self.class_colors.get(class_name, 'lightgray'),
+                            label=f"{class_name} (no data)")
                 ax.legend(title='Class')
             
             # Clean up feature name for title
@@ -985,12 +991,61 @@ class PlottingEngine:
         if not matched_files:
             return None
 
-        max_plots = min(6, len(matched_files))
-        fig, axes = plt.subplots(max_plots, 1, figsize=(14, 3 * max_plots))
-        if max_plots == 1:
+        # Group files by class to ensure representation from each class
+        class_to_files = {}
+        for path in matched_files:
+            try:
+                rel_path = os.path.relpath(path, dataset_root)
+                class_label = rel_path.split(os.sep)[0] if os.sep in rel_path else rel_path.split('/')[0]
+            except Exception:
+                class_label = 'Unknown'
+            class_to_files.setdefault(class_label, []).append(path)
+
+        # Prefer specific temperature files for comparability if temperature requested
+        preferred_temp_files = ['STTS751_TEMP.csv', 'LPS22HH_TEMP.csv', 'HTS221_TEMP.csv'] if 'temp' in sensor_kws else []
+
+        # Build a balanced selection across classes
+        selected_files = []
+        # Step 1: pick one preferred file per class if available
+        for class_label in label_dirs:
+            files = class_to_files.get(class_label, [])
+            if not files:
+                continue
+            picked = None
+            if preferred_temp_files:
+                for pref in preferred_temp_files:
+                    for f in files:
+                        if os.path.basename(f).lower() == pref.lower():
+                            picked = f
+                            break
+                    if picked:
+                        break
+            if not picked:
+                picked = files[0]
+            selected_files.append(picked)
+
+        # Step 2: if we still have room, round-robin remaining files per class
+        remaining_per_class = {c: [f for f in class_to_files.get(c, []) if f not in selected_files] for c in label_dirs}
+
+        max_plots = min(6, max(1, len(selected_files)))
+        # Try to fill up to max_plots by interleaving classes
+        while len(selected_files) < max_plots:
+            added = False
+            for c in label_dirs:
+                rem = remaining_per_class.get(c, [])
+                if rem:
+                    selected_files.append(rem.pop(0))
+                    added = True
+                    if len(selected_files) >= max_plots:
+                        break
+            if not added:
+                break
+
+        fig, axes = plt.subplots(len(selected_files), 1, figsize=(14, 3 * len(selected_files)))
+        if len(selected_files) == 1:
             axes = [axes]
 
-        for i, path in enumerate(matched_files[:max_plots]):
+        for i, path in enumerate(selected_files):
             try:
                 df = pd.read_csv(path)
             except Exception:
@@ -1005,6 +1060,12 @@ class PlottingEngine:
             value_cols = [c for c in df.columns if c != time_col]
 
             ax = axes[i]
+            # Extract class label from path and annotate on the plot
+            try:
+                rel_path = os.path.relpath(path, dataset_root)
+                class_label = rel_path.split(os.sep)[0] if os.sep in rel_path else rel_path.split('/')[0]
+            except Exception:
+                class_label = 'Unknown'
             for col in value_cols:
                 try:
                     if time_col is not None:
@@ -1013,11 +1074,32 @@ class PlottingEngine:
                         ax.plot(df[col], label=col)
                 except Exception:
                     continue
-            ax.set_title(f"{os.path.basename(path)}")
+            # Title includes filename and class label
+            ax.set_title(f"{os.path.basename(path)} — {class_label}")
             ax.set_xlabel(time_col if time_col else 'Sample Index')
             ax.set_ylabel('Sensor Value')
             ax.grid(True, alpha=0.3)
             ax.legend(fontsize=8)
+
+            # Add a visible class tag inside the axes
+            try:
+                ax.text(
+                    0.98,
+                    0.02,
+                    class_label,
+                    transform=ax.transAxes,
+                    ha='right',
+                    va='bottom',
+                    fontsize=10,
+                    fontweight='bold',
+                    bbox=dict(
+                        facecolor=self.class_colors.get(class_label, 'lightgray'),
+                        alpha=0.25,
+                        edgecolor='none'
+                    )
+                )
+            except Exception:
+                pass
 
         plt.suptitle('Time Series (dataset)', fontsize=16, fontweight='bold')
         plt.tight_layout()
