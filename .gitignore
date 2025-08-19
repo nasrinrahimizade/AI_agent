@@ -153,5 +153,6 @@ Llama-3.2-1B/
 # Virtual environment
 env/
 
+vel-fissa-2/
 # IDE and editor files
 .vscode/
