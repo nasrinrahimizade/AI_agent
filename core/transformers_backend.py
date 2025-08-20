@@ -147,6 +147,22 @@ class Chatbot:
         }
         
         text_lower = user_input.lower()
+
+        # Detect capability/skills questions early
+        capability_phrases = [
+            'what are your skills',
+            'what can you do',
+            'your capabilities',
+            'what do you do',
+            'what are you good at',
+            'what are your abilities',
+            'how can you help',
+            'what can u do'
+        ]
+        if any(p in text_lower for p in capability_phrases):
+            analysis['intent'] = 'capabilities'
+            analysis['confidence'] = 0.95
+            return analysis
         
         # First, check if this is general conversation (greetings, casual talk)
         general_conversation_keywords = [
@@ -530,12 +546,26 @@ class Chatbot:
             # Fallback to old system if there's an error
             pass
         
-        # 3) Fallback to old LLM-based system for non-data requests
+        # 3) Fallback to old LLM-based system for non-data requests with validation-before-send
         # Note: The decode function below is ONLY for LLM-generated responses, 
         # NOT for ML responses which are handled above and returned directly
         
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
+
+        # Handle capability/skills questions with concise, project-aware response
+        if analysis.get('intent') == 'capabilities':
+            response = (
+                "I analyze sensor datasets (statistics, comparisons), identify top discriminative features, "
+                "and generate visualizations (line, histogram, scatter, correlation, time series, frequency). "
+                "I can assess data quality, compare OK vs KO, and answer data science questions concisely."
+            )
+            self.user_messages.append(user_input)
+            self.ai_messages.append(response)
+            self.history.append(("User", user_input))
+            self.history.append(("AI", response))
+            self._prune_history()
+            return response
 
         # Short-circuit general conversation with safe canned replies to avoid hallucinated plot text
         if analysis.get('is_general_conversation', False):
@@ -678,16 +708,30 @@ class Chatbot:
                                 break
         
         # 10) Enhanced response cleaning and improvement with learning
-        reply = self._clean_response(reply)
-        reply = self._enhance_response_quality(reply, user_input, analysis)
+        candidate_reply = self._clean_response(reply)
+        candidate_reply = self._enhance_response_quality(candidate_reply, user_input, analysis)
+
+        # 10.5) Validation-before-send: if the parser would treat this as a data request, do NOT send LLM reply
+        # Instead, provide a concise capability/general reply depending on detected intent
+        reparse = parse_command(user_input)
+        if reparse.command_type.value != 'unknown':
+            # Treat as general conversation to avoid wrong data errors
+            if analysis.get('intent') == 'capabilities':
+                final_reply = (
+                    "I analyze sensor datasets, identify discriminative features, and generate visualizations."
+                )
+            else:
+                final_reply = "Okay."
+        else:
+            final_reply = candidate_reply
         
         # Stop at any new speaker label (including USER : with space)
         reply = re.split(r"(?i)\b(?:User|System|Developer|AI|USER)\s*:", reply)[0].strip()
 
         # 11) Update response metrics and learn from interaction
         response_time = time.time() - start_time
-        self._update_response_metrics(reply, analysis, response_time)
-        self._learn_from_interaction(user_input, reply, analysis)
+        self._update_response_metrics(final_reply, analysis, response_time)
+        self._learn_from_interaction(user_input, final_reply, analysis)
         
         # 12) Add conversation flow entry for AI response
         ai_flow_entry = {
@@ -700,8 +744,8 @@ class Chatbot:
         }
         self.conversation_context['conversation_flow'].append(ai_flow_entry)
 
-        self.history.append(("AI", reply))
-        return reply
+        self.history.append(("AI", final_reply))
+        return final_reply
 
     def _calculate_adaptive_tokens(self, user_input: str, analysis: Dict, base_tokens: int) -> int:
         """Calculate adaptive token count based on user behavior and context - optimized for single-line responses"""

@@ -305,109 +305,23 @@ class ResponseFormatter:
             features = ml_result['top_features']
             feature_details = ml_result.get('feature_details', {})
             count = len(features)
-            
-            # Listing mode: one line per feature with rank, feature, sensor, score
-            original_request_text = getattr(parsed_command, 'original_request', '') or ''
-            if isinstance(original_request_text, str) and 'list' in original_request_text.lower():
-                lines = []
-                lines.append(f"Top {count} features (OK vs KO):")
-                lines.append("Rank  Feature                               Sensor           Score")
-                lines.append("---------------------------------------------------------------")
-                rows = []
-                for i, feature in enumerate(features, 1):
-                    details = feature_details.get(feature, {})
-                    sep = details.get('discriminative_score') or details.get('separation_score') or 0.0
-                    sensor_name = feature.split('_')[0] if '_' in feature else 'Unknown'
-                    lines.append(f"{i:<5} {feature[:35]:<35} {sensor_name:<15} {sep:>.4f}")
-                    rows.append([str(i), feature, sensor_name, f"{sep:.4f}"])
-                main_text = "\n".join(lines)
-                table_data = {
-                    'headers': ['Rank', 'Feature', 'Sensor', 'Score'],
-                    'rows': rows,
-                    'title': f'Top {count} Features (OK vs KO)'
-                }
-                return {
-                    'status': 'success',
-                    'main_response': main_text,
-                    'context': context,
-                    'suggestions': [
-                        "Show distributions of these features",
-                        "Compare the top 2 features",
-                        "List top features per sensor"
-                    ],
-                    'data_source': ml_result.get('data_source', 'Mock data'),
-                    'confidence': parsed_command.confidence,
-                    'data_quality': data_quality,
-                    'analysis_confidence': confidence,
-                    'plot_suggestion': None,
-                    'table_data': table_data
-                }
 
-            # Pretty, line-broken layout per feature with nested indentation
-            lines = []
-            lines.append(f"Top {count} statistical indices that best separate {classes_text} samples:")
+            # Compact, structured list output
+            lines = [f"Top {count} discriminative features (OK vs KO):"]
+            rows = []
             for i, feature in enumerate(features, 1):
-                lines.append(f"{i}. {feature}")
                 details = feature_details.get(feature, {})
-                # Significance
-                p_value = details.get('p_value', None)
-                sig_flag = details.get('statistical_significance')
-                if p_value is not None:
-                    significance = "highly significant" if p_value < 0.01 else "significant" if p_value < 0.05 else "not significant"
-                else:
-                    significance = sig_flag if sig_flag else "not available"
-                lines.append(f"   - Statistical significance: {significance}")
-                # Class means
-                class_means = details.get('class_means', {})
-                if class_means:
-                    lines.append(f"   - Class means:")
-                    if 'OK' in class_means:
-                        lines.append(f"     - OK: {class_means['OK']:.2f}")
-                    if 'KO' in class_means:
-                        lines.append(f"     - KO: {class_means['KO']:.2f}")
-                # Spacer between features
-                if i != len(features):
-                    lines.append("")
+                sep = details.get('discriminative_score') or details.get('separation_score') or 0.0
+                lines.append(f"{i}. {feature} — score {sep:.4f}")
+                rows.append([str(i), feature, f"{sep:.4f}"])
 
-            # Explanatory text at the bottom (kept intact except global parentheses cleaner may run later)
-            expl = []
-            expl.append("These features were selected using Statistical feature identification, which measures the discriminative power between OK and KO classes. Higher F-statistics indicate greater separation between classes, making these features most effective for classification and quality control purposes.")
+            main_text = "\n".join(lines)
 
-            # Add sample count information
-            sample_count = ml_result.get('sample_count', 0)
-            if sample_count > 0:
-                expl.append(f"Analysis based on {sample_count} samples from the dataset.")
-
-            # Append per-model section if available
-            model_imps = ml_result.get('model_importances') or {}
-            if model_imps:
-                expl.append("")
-                expl.append("Top 5 important features by model:")
-                for model_name, feats in model_imps.items():
-                    expl.append(f"{model_name}:")
-                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
-                    for j, entry in enumerate(sorted_feats, 1):
-                        fname = entry.get('feature', 'Unknown')
-                        score = entry.get('importance', 0.0)
-                        expl.append(f"  {j}. {fname}  {score:.4f}")
-                    expl.append("")
-
-            main_text = "\n".join(lines + ["", *expl]).rstrip()
-
-            # Append per-model top features (Top 5) with scores, clearly grouped by model
-            model_imps = ml_result.get('model_importances') or {}
-            if model_imps:
-                lines = []
-                lines.append("\nTop 5 important features by model:")
-                for model_name, feats in model_imps.items():
-                    lines.append(f"\n{model_name}:")
-                    # Sort by importance descending and take top 5
-                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
-                    for i, entry in enumerate(sorted_feats, 1):
-                        fname = entry.get('feature', 'Unknown')
-                        score = entry.get('importance', 0.0)
-                        lines.append(f"{i}. {fname}  {score:.4f}")
-                main_text += "\n" + "\n".join(lines)
+            table_data = {
+                'headers': ['Rank', 'Feature', 'Score'],
+                'rows': rows,
+                'title': f'Top {count} Features (OK vs KO)'
+            }
             
         else:
             # Fallback to mock data
@@ -683,25 +597,10 @@ class ResponseFormatter:
     def _format_error_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format an error response"""
         error_message = ml_result.get('message', 'Unknown error occurred')
-        # Enrich error with available sensors/plots if present
-        details = []
-        if 'available_sensors' in ml_result:
-            sensors_sample = ', '.join(ml_result.get('available_sensors', [])[:10])
-            if sensors_sample:
-                details.append(f"Available sensors: {sensors_sample}")
-        if 'supported_plot_types' in ml_result:
-            types = ', '.join(ml_result.get('supported_plot_types', [])[:10])
-            if types:
-                details.append(f"Supported plot types: {types}")
-        if 'available_features_sample' in ml_result:
-            feats = ', '.join(ml_result.get('available_features_sample', [])[:10])
-            if feats:
-                details.append(f"Sample features: {feats}")
-        detail_text = f" ({'; '.join(details)})" if details else ''
 
         return {
             'status': 'error',
-            'main_response': f"Sorry, I couldn't process that request: {error_message}{detail_text}",
+            'main_response': f"Sorry, I couldn't process that request: {error_message}",
             'context': "Please check your request format and try again.",
             'suggestions': [
                 "Make sure you specify a sensor name",

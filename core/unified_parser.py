@@ -324,18 +324,33 @@ class UnifiedParser:
         elif any(indicator in text_lower for indicator in visual_indicators):
             response_type = "visual"
         
-        # Check for specific command types
-        for command_type, patterns in self.command_patterns.items():
-            for pattern in patterns:
-                if pattern.search(text_lower):
-                    # Override response type for specific commands
-                    if command_type == CommandType.TOP_FEATURES:
-                        response_type = "text"
-                    elif command_type == CommandType.PLOT:
-                        response_type = "visual"
-                    elif command_type == CommandType.STATISTIC and response_type == "auto":
-                        response_type = "text"  # Statistics default to text
-                    return command_type, response_type
+        # Check for specific command types with stricter conditions
+        # Statistics: require BOTH an action verb and a statistic term
+        stat_actions = re.search(r"\b(?:what is|get|show|calculate|give me|find|compute)\b", text_lower)
+        stat_terms = re.search(r"\b(?:mean|median|variance|std|min|max|count)\b", text_lower)
+        if stat_actions and stat_terms:
+            return CommandType.STATISTIC, "text"
+
+        # Plot: presence of plot intent words and known plot types
+        if any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.LINE_GRAPH, [])) \
+           or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HISTOGRAM, [])) \
+           or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.SCATTER, [])) \
+           or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.CORRELATION, [])) \
+           or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.VIOLIN, [])) \
+           or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HEATMAP, [])):
+            return CommandType.PLOT, "visual"
+
+        # Comparison: keywords
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.COMPARISON, [])):
+            return CommandType.COMPARISON, response_type
+
+        # Analysis: keywords
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.ANALYSIS, [])):
+            return CommandType.ANALYSIS, response_type
+
+        # Top features: prior check above may have returned; otherwise check patterns
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.TOP_FEATURES, [])):
+            return CommandType.TOP_FEATURES, "text"
         
         # Check for statistical patterns
         for stat_type, patterns in self.stat_patterns.items():
