@@ -272,6 +272,32 @@ class ResponseFormatter:
         warnings = ml_result.get('warnings', [])
         analysis_method = ml_result.get('analysis_method', 'Statistical analysis')
         
+        # Build context with data quality information (needed for all branches)
+        context_parts = []
+        
+        # Add analysis method
+        context_parts.append(f"Feature selection analysis completed using {analysis_method}.")
+        
+        # Add confidence information
+        if confidence == 'high':
+            context_parts.append("High confidence analysis based on sufficient data.")
+        elif confidence == 'medium':
+            context_parts.append("Medium confidence - consider collecting more samples for higher reliability.")
+        elif confidence == 'low':
+            context_parts.append("Low confidence - results may not be reliable due to limited data.")
+        
+        # Add data quality information
+        if data_quality == 'good':
+            context_parts.append("Data quality is good.")
+        elif data_quality == 'poor':
+            context_parts.append("⚠️ Data quality issues detected - verify results.")
+        
+        # Add warnings if any
+        if warnings:
+            context_parts.append(f"⚠️ Warnings: {', '.join(warnings)}")
+        
+        context = ' '.join(context_parts)
+        
         if ml_result.get('status') == 'success' and 'top_features' in ml_result:
             features = ml_result['top_features']
             feature_details = ml_result.get('feature_details', {})
@@ -392,32 +418,6 @@ class ResponseFormatter:
             feature_list = '\n'.join(feature_descriptions)
             main_text = f"Top {count} statistical indices that best separate {classes_text} samples:\n\n{feature_list}\n\n"
             main_text += f"These features were selected based on their discriminative power between {classes_text} classes."
-        
-        # Build context with data quality information
-        context_parts = []
-        
-        # Add analysis method
-        context_parts.append(f"Feature selection analysis completed using {analysis_method}.")
-        
-        # Add confidence information
-        if confidence == 'high':
-            context_parts.append("High confidence analysis based on sufficient data.")
-        elif confidence == 'medium':
-            context_parts.append("Medium confidence - consider collecting more samples for higher reliability.")
-        elif confidence == 'low':
-            context_parts.append("Low confidence - results may not be reliable due to limited data.")
-        
-        # Add data quality information
-        if data_quality == 'good':
-            context_parts.append("Data quality is good.")
-        elif data_quality == 'poor':
-            context_parts.append("⚠️ Data quality issues detected - verify results.")
-        
-        # Add warnings if any
-        if warnings:
-            context_parts.append(f"⚠️ Warnings: {', '.join(warnings)}")
-        
-        context = ' '.join(context_parts)
         
         suggestions = [
             "Request detailed statistical analysis of any of these top features",

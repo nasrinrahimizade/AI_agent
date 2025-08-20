@@ -78,7 +78,6 @@ class HelpView(QWidget):
                 <ul>
                     <li><b>"What is the mean temperature for KO_HIGH_2mm samples from HTS221_TEMP?"</b> - Get average temperature for specific class and sensor</li>
                     <li><b>"Calculate the median humidity for KO_LOW_2mm samples"</b> - Get middle value for specific class</li>
-                    <li><b>"Show the variance of acceleration in IIS3DWB_ACC for KO_HIGH_2mm and KO_LOW_2mm"</b> - Compare variability between classes</li>
                     <li><b>"Give me the standard deviation of pressure from LPS22HH_PRESS for each class"</b> - Get spread across all classes</li>
                     <li><b>"List the top 3 statistical indices that best separate KO_HIGH_2mm and KO_LOW_2mm samples"</b> - Find most discriminative features</li>
                 </ul>
