@@ -191,29 +191,29 @@ class UnifiedParser:
         self.sensor_mapping = {
             # Temperature sensors
             'HTS221_TEMP': ['hts221_temp', 'hts221', 'temperature', 'temp', 'thermal'],
-            'temperature_mean': ['temperature', 'temp', 'thermal', 'heat'],
+            'temperature_mean': ['temperature', 'temp', 'thermal', 'heat', 'hts221_temp', 'hts221', 'hts221 temperature'],
             
             # Humidity sensors
-            'HTS221_HUM': ['hts221_hum', 'hts221_humidity', 'humidity', 'hum', 'moisture'],
-            'humidity_mean': ['humidity', 'hum', 'moisture', 'wetness'],
+            'HTS221_HUM': ['hts221_hum', 'hts221_humidity', 'hts221 humidity', 'humidity', 'hum', 'moisture', 'wetness'],
+            'humidity_mean': ['humidity', 'hum', 'moisture', 'wetness', 'hts221_hum', 'hts221_humidity', 'hts221 humidity'],
             
             # Pressure sensors
-            'LPS22HH_PRESS': ['lps22hh_press', 'lps22hh', 'pressure', 'press', 'barometric'],
-            'pressure_mean': ['pressure', 'press', 'barometric', 'force'],
+            'LPS22HH_PRESS': ['lps22hh_press', 'lps22hh', 'lps22hh pressure', 'pressure', 'press', 'barometric', 'force'],
+            'pressure_mean': ['pressure', 'press', 'barometric', 'force', 'lps22hh_press', 'lps22hh', 'lps22hh pressure'],
             
             # Acceleration sensors
-            'IIS3DWB_ACC': ['iis3dwb_acc', 'iis3dwb', 'acceleration', 'acc', 'motion'],
-            'acceleration_x_mean': ['acceleration_x', 'acc_x', 'accel_x', 'motion_x'],
-            'acceleration_y_mean': ['acceleration_y', 'acc_y', 'accel_y', 'motion_y'],
-            'acceleration_z_mean': ['acceleration_z', 'acc_z', 'accel_z', 'motion_z'],
+            'IIS3DWB_ACC': ['iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration', 'acceleration_x', 'acc_x', 'accel_x', 'motion_x', 'acceleration_y', 'acc_y', 'accel_y', 'motion_y', 'acceleration_z', 'acc_z', 'accel_z', 'motion_z'],
+            'acceleration_x_mean': ['acceleration_x', 'acc_x', 'accel_x', 'motion_x', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
+            'acceleration_y_mean': ['acceleration_y', 'acc_y', 'accel_y', 'motion_y', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
+            'acceleration_z_mean': ['acceleration_z', 'acc_z', 'accel_z', 'motion_z', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
             
             # Gyroscope sensors
-            'gyroscope_x_mean': ['gyroscope_x', 'gyro_x', 'rotation_x', 'angular_x'],
-            'gyroscope_y_mean': ['gyroscope_y', 'gyro_y', 'rotation_y', 'angular_y'],
-            'gyroscope_z_mean': ['gyroscope_z', 'gyro_z', 'rotation_z', 'angular_z'],
+            'gyroscope_x_mean': ['gyroscope_x', 'gyro_x', 'rotation_x', 'angular_x', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
+            'gyroscope_y_mean': ['gyroscope_y', 'gyro_y', 'rotation_y', 'angular_y', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
+            'gyroscope_z_mean': ['gyroscope_z', 'gyro_z', 'rotation_z', 'angular_z', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
             
             # Microphone
-            'microphone_mean': ['microphone', 'mic', 'audio', 'sound', 'acoustic']
+            'microphone_mean': ['microphone', 'mic', 'audio', 'sound', 'acoustic', 'iis3dwb_mic', 'iis3dwb', 'iis3dwb microphone']
         }
         
         # Class patterns
@@ -425,6 +425,14 @@ class UnifiedParser:
     
     def _parse_target_features(self, text_lower: str, parsed: UnifiedParsedCommand):
         """Extract target features from the text"""
+        # Detect vendor-specific sensor codes (e.g., HTS221, LPS22HH, STTS751)
+        vendor_tokens = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", text_lower.upper())
+        for tok in vendor_tokens:
+            if tok not in parsed.target_features:
+                parsed.target_features.append(tok)
+            if parsed.target_column is None:
+                parsed.target_column = tok
+        
         # First, try to find exact sensor names
         for sensor_name, aliases in self.sensor_mapping.items():
             for alias in aliases:

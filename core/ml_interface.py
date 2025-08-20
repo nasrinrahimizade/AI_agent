@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib
+import re
 matplotlib.use('Agg')  # Use non-interactive backend for server environments
 
 # try:
@@ -69,6 +70,14 @@ class MLInterface:
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
         self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
                                    'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
+        # Supported plots (aliases)
+        self.supported_plots = {
+            'histogram': ['histogram', 'hist'],
+            'line': ['line', 'line graph', 'line_graph'],
+            'scatter': ['scatter', 'scatterplot'],
+            'correlation': ['correlation', 'correlation_matrix'],
+            'violin': ['violin', 'violinplot']
+        }
 
     def get_statistic(self, stat: str, column: str, filters: Optional[Dict] = None,
                    group_by: Optional[str] = None) -> Dict[str, Any]:
@@ -82,7 +91,9 @@ class MLInterface:
                     'status': 'error',
                     'message': f'Column {column} not found in data',
                     'data_source': 'Mock data',
-                    'data_quality': 'invalid_column'
+                    'data_quality': 'invalid_column',
+                    'available_sensors': self.available_sensors,
+                    'available_features_sample': [c for c in self.mock_data.columns if c not in ['label', 'sample']][:10]
                 }
             
             # Apply filters if specified
@@ -481,6 +492,10 @@ class MLInterface:
     
     def _map_sensor_to_column(self, sensor_name: str) -> str:
         """Map sensor names to actual column names in the dataset."""
+        # If vendor code provided (e.g., STTS751), do not remap to other vendor sensors
+        if re.match(r"^[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*$", str(sensor_name)):
+            return sensor_name  # force validation to fail if not present
+        
         # If the sensor_name is already a full column name, return it
         if sensor_name in self.mock_data.columns:
             return sensor_name
@@ -958,6 +973,14 @@ class MLInterface:
                        filters: Optional[Dict] = None) -> Dict[str, Any]:
         """Get data for plotting with optional filtering"""
         try:
+            if self.mock_data is None:
+                return {
+                    'status': 'error',
+                    'message': 'No data loaded for plotting',
+                    'data_source': 'No data',
+                    'available_sensors': self.available_sensors,
+                    'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases})
+                }
             # Apply filters if specified
             data = self.mock_data.copy()
             if filters and 'class' in filters:
@@ -967,7 +990,8 @@ class MLInterface:
                 return {
                     'status': 'error',
                     'message': f'No data found for the specified filters',
-                    'data_source': 'Mock data'
+                    'data_source': 'Mock data',
+                    'available_sensors': self.available_sensors
                 }
             
             # Map features to actual column names
@@ -977,13 +1001,39 @@ class MLInterface:
                     mapped_feature = self._map_sensor_to_column(feature)
                     if mapped_feature in data.columns:
                         target_features.append(mapped_feature)
+                # If user specified features but none matched, fail with guidance
+                if len(target_features) == 0:
+                    return {
+                        'status': 'error',
+                        'message': 'Requested features not found in dataset',
+                        'requested_features': features,
+                        'available_features_sample': [c for c in data.columns if c not in ['label', 'sample']][:10],
+                        'available_sensors': self.available_sensors,
+                        'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases}),
+                        'data_source': 'Mock data'
+                    }
             
             if not target_features:
                 # Default to all numeric features
                 target_features = [col for col in data.columns if col not in ['label', 'sample']]
             
+            # Validate/normalize plot type
+            pt = plot_type.lower()
+            normalized = None
+            for key, aliases in self.supported_plots.items():
+                if pt in aliases:
+                    normalized = key
+                    break
+            if normalized is None:
+                return {
+                    'status': 'error',
+                    'message': f'Unsupported plot type: {plot_type}',
+                    'supported_plot_types': sorted({a for v in self.supported_plots.values() for a in v}),
+                    'data_source': 'Mock data'
+                }
+            
             # Prepare plot data based on type
-            if plot_type.lower() in ['histogram', 'hist']:
+            if normalized == 'histogram':
                 plot_data = {}
                 for feature in target_features:
                     plot_data[feature] = {
@@ -994,7 +1044,7 @@ class MLInterface:
                         'ylabel': 'Frequency'
                     }
                     
-            elif plot_type.lower() in ['line graph', 'line']:
+            elif normalized == 'line':
                 plot_data = {}
                 for feature in target_features:
                     plot_data[feature] = {
@@ -1004,7 +1054,7 @@ class MLInterface:
                         'ylabel': feature
                     }
                     
-            elif plot_type.lower() in ['scatter', 'scatterplot']:
+            elif normalized == 'scatter':
                 if len(target_features) >= 2:
                     plot_data = {
                         'x_values': data[target_features[0]].tolist(),
@@ -1018,10 +1068,11 @@ class MLInterface:
                     return {
                         'status': 'error',
                         'message': 'Scatter plot requires at least 2 features',
-                        'data_source': 'Mock data'
+                        'data_source': 'Mock data',
+                        'available_features_sample': target_features[:10]
                     }
                     
-            elif plot_type.lower() in ['correlation', 'correlation_matrix']:
+            elif normalized == 'correlation':
                 # Calculate correlation matrix for numeric features
                 numeric_data = data[target_features]
                 correlation_matrix = numeric_data.corr()
@@ -1033,7 +1084,7 @@ class MLInterface:
                     'ylabel': 'Features'
                 }
                 
-            elif plot_type.lower() in ['violin', 'violinplot']:
+            elif normalized == 'violin':
                 plot_data = {}
                 for feature in target_features:
                     plot_data[feature] = {
@@ -1052,7 +1103,7 @@ class MLInterface:
             
             return {
                 'status': 'success',
-                'plot_type': plot_type,
+                'plot_type': normalized,
                 'plot_data': plot_data,
                 'features': target_features,
                 'filters': filters,

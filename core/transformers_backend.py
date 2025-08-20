@@ -404,69 +404,87 @@ class Chatbot:
                         response = response_data['main_response']
                     elif response_type == 'visual':
                         # Visual response - include plot trigger
-                        response = response_data['main_response']
-                        # Prefer the actual plot_type returned from the pipeline over suggestion
-                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
-                        # Normalize aliases
-                        if effective_plot in ['line', 'line graph', 'line_graph']:
-                            response = "📈 Creating line graph..."
-                            trigger = 'line_graph'
-                        elif effective_plot in ['hist', 'histogram']:
-                            response = "📊 Creating histogram..."
-                            trigger = 'histogram'
-                        elif effective_plot in ['scatter', 'scatterplot']:
-                            response = "💫 Creating scatter plot..."
-                            trigger = 'scatter'
-                        elif effective_plot in ['correlation', 'correlation_matrix']:
-                            response = "🔗 Creating correlation matrix..."
-                            trigger = 'correlation'
-                        elif effective_plot in ['timeseries', 'time series']:
-                            response = "🕒 Creating time series plot..."
-                            trigger = 'timeseries'
-                        elif effective_plot in ['frequency', 'fft']:
-                            response = "📡 Creating frequency domain plot..."
-                            trigger = 'frequency'
-                        else:
-                            # Fallback to suggestion if available
-                            plot_suggestion = response_data.get('plot_suggestion')
-                            if plot_suggestion == 'line_graph':
+                        # Only acknowledge creation if a plot is actually ready
+                        if response_data.get('plot_ready', False):
+                            response = response_data['main_response']
+                            effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                            # Normalize aliases
+                            if effective_plot in ['line', 'line graph', 'line_graph']:
                                 response = "📈 Creating line graph..."; trigger = 'line_graph'
-                            elif plot_suggestion == 'histogram':
+                            elif effective_plot in ['hist', 'histogram']:
                                 response = "📊 Creating histogram..."; trigger = 'histogram'
-                            elif plot_suggestion == 'scatter':
+                            elif effective_plot in ['scatter', 'scatterplot']:
                                 response = "💫 Creating scatter plot..."; trigger = 'scatter'
-                            elif plot_suggestion == 'correlation':
+                            elif effective_plot in ['correlation', 'correlation_matrix']:
                                 response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
-                            elif plot_suggestion == 'timeseries':
+                            elif effective_plot in ['timeseries', 'time series']:
                                 response = "🕒 Creating time series plot..."; trigger = 'timeseries'
-                            elif plot_suggestion == 'frequency':
+                            elif effective_plot in ['frequency', 'fft']:
                                 response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
                             else:
-                                trigger = (plot_suggestion or 'line_graph')
-                                response = f"📊 Creating {trigger}..."
+                                # Fallback to suggestion if available
+                                plot_suggestion = response_data.get('plot_suggestion')
+                                if plot_suggestion == 'line_graph':
+                                    response = "📈 Creating line graph..."; trigger = 'line_graph'
+                                elif plot_suggestion == 'histogram':
+                                    response = "📊 Creating histogram..."; trigger = 'histogram'
+                                elif plot_suggestion == 'scatter':
+                                    response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                                elif plot_suggestion == 'correlation':
+                                    response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                                elif plot_suggestion == 'timeseries':
+                                    response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                                elif plot_suggestion == 'frequency':
+                                    response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                                else:
+                                    # No valid suggestion; don't acknowledge creation
+                                    trigger = None
+                                    response = response_data['main_response']
 
-                        response += f" [TRIGGER_PLOT:{trigger}]"
+                            if trigger:
+                                response += f" [TRIGGER_PLOT:{trigger}]"
+                        else:
+                            # Validation failed/plot not ready; return main_response as-is
+                            response = response_data['main_response']
                     else:
                         # Auto mode - check if plot is suggested
-                        response = response_data['main_response']
-                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
-                        if effective_plot in ['line', 'line graph', 'line_graph']:
-                            response = "📈 Creating line graph..."; trigger = 'line_graph'
-                        elif effective_plot in ['hist', 'histogram']:
-                            response = "📊 Creating histogram..."; trigger = 'histogram'
-                        elif effective_plot in ['scatter', 'scatterplot']:
-                            response = "💫 Creating scatter plot..."; trigger = 'scatter'
-                        elif effective_plot in ['correlation', 'correlation_matrix']:
-                            response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
-                        elif effective_plot in ['timeseries', 'time series']:
-                            response = "🕒 Creating time series plot..."; trigger = 'timeseries'
-                        elif effective_plot in ['frequency', 'fft']:
-                            response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
-                        else:
-                            trigger = (response_data.get('plot_suggestion') or 'line_graph')
-                            response = f"📊 Creating {trigger}..."
+                        # In auto mode, only trigger creation if plot is actually ready
+                        if response_data.get('plot_ready', False):
+                            effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                            if effective_plot in ['line', 'line graph', 'line_graph']:
+                                response = "📈 Creating line graph..."; trigger = 'line_graph'
+                            elif effective_plot in ['hist', 'histogram']:
+                                response = "📊 Creating histogram..."; trigger = 'histogram'
+                            elif effective_plot in ['scatter', 'scatterplot']:
+                                response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                            elif effective_plot in ['correlation', 'correlation_matrix']:
+                                response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                            elif effective_plot in ['timeseries', 'time series']:
+                                response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                            elif effective_plot in ['frequency', 'fft']:
+                                response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                            else:
+                                plot_suggestion = response_data.get('plot_suggestion')
+                                if plot_suggestion == 'line_graph':
+                                    response = "📈 Creating line graph..."; trigger = 'line_graph'
+                                elif plot_suggestion == 'histogram':
+                                    response = "📊 Creating histogram..."; trigger = 'histogram'
+                                elif plot_suggestion == 'scatter':
+                                    response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                                elif plot_suggestion == 'correlation':
+                                    response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                                elif plot_suggestion == 'timeseries':
+                                    response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                                elif plot_suggestion == 'frequency':
+                                    response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                                else:
+                                    trigger = None
+                                    response = response_data['main_response']
 
-                        response += f" [TRIGGER_PLOT:{trigger}]"
+                            if trigger:
+                                response += f" [TRIGGER_PLOT:{trigger}]"
+                        else:
+                            response = response_data['main_response']
                     
                     # Update conversation context and return
                     self.user_messages.append(user_input)
@@ -498,6 +516,15 @@ class Chatbot:
                     self._update_response_metrics(response, ml_analysis, response_time)
                     
                     return response
+                else:
+                    # Validation-first: surface error instead of falling back to LLM
+                    response = response_data.get('main_response') or response_data.get('message') or 'Request could not be processed.'
+                    self.user_messages.append(user_input)
+                    self.ai_messages.append(response)
+                    self.history.append(("User", user_input))
+                    self.history.append(("AI", response))
+                    self._prune_history()
+                    return response
                     
         except Exception as e:
             # Fallback to old system if there's an error
@@ -509,6 +536,26 @@ class Chatbot:
         
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
+
+        # Short-circuit general conversation with safe canned replies to avoid hallucinated plot text
+        if analysis.get('is_general_conversation', False):
+            text_lower = user_input.lower().strip()
+            if any(w in text_lower for w in ['thanks', 'thank you', 'thx']):
+                response = "You're welcome."
+            elif any(w in text_lower for w in ['sorry', 'apologize']):
+                response = "No problem."
+            elif any(w in text_lower for w in ['hi', 'hello', 'hey', 'yo', 'sup']):
+                response = "Hi."
+            else:
+                response = "Okay."
+
+            # Update histories and return
+            self.user_messages.append(user_input)
+            self.ai_messages.append(response)
+            self.history.append(("User", user_input))
+            self.history.append(("AI", response))
+            self._prune_history()
+            return response
         
         # 2) Update conversation context
         self._update_conversation_context(user_input, analysis)

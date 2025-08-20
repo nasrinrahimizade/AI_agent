@@ -97,6 +97,9 @@ class ResponseFormatter:
         """Format ML result into a user-friendly response"""
         try:
             if ml_result.get('status') == 'error':
+                # Route plot errors to plot formatter to include available sensors/types if present
+                if (parsed_command.command_type and parsed_command.command_type.value == 'plot'):
+                    return self._format_plot_response(parsed_command, ml_result)
                 return self._format_error_response(parsed_command, ml_result)
             
             command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
@@ -121,8 +124,8 @@ class ResponseFormatter:
                 # Fallback to error response
                 return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
             
-            # For visual responses, keep the main response short and direct
-            if response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']:
+            # For visual responses, keep the main response short and direct (only on success)
+            if (response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']) and formatted_response.get('status') == 'success':
                 # Keep only the main response, minimize context and suggestions
                 formatted_response['main_response'] = formatted_response['main_response']
                 formatted_response['context'] = "Visualization ready."
@@ -447,8 +450,29 @@ class ResponseFormatter:
         else:
             features_text = 'the requested data'
         
-        # Short, direct response for plot requests
-        if ml_result.get('plot_ready', False):
+        # Plot validation-aware response
+        if ml_result.get('status') == 'error':
+            # Prefer concise target naming: vendor-like codes (e.g., STTS751) over generic features
+            display_target = 'the requested data'
+            vendor_pattern = r'^[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*$'
+            if target_features:
+                # Look for vendor-style token first
+                for feat in target_features:
+                    if isinstance(feat, str) and re.match(vendor_pattern, feat.upper()):
+                        display_target = feat
+                        break
+                if display_target == 'the requested data':
+                    display_target = target_features[0]
+            else:
+                # Fallback: try to extract from original request
+                req = getattr(parsed_command, 'original_request', '') or ''
+                tokens = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", req.upper())
+                if tokens:
+                    display_target = tokens[0]
+            # Keep error minimal per user preference
+            main_text = f"❌ Unable to create {plot_type} for {display_target}"
+            plot_suggestion = None
+        elif ml_result.get('plot_ready', False):
             main_text = f"✅ {plot_type.title()} created and ready to display."
             plot_suggestion = plot_type
         else:
@@ -456,15 +480,23 @@ class ResponseFormatter:
             plot_suggestion = None
         
         # Minimal context and suggestions for plot responses
-        context = "Visualization ready."
-        suggestions = [
-            "Analyze the patterns shown",
-            "Request statistical details",
-            "Generate additional plots"
-        ]
+        if ml_result.get('status') == 'error':
+            context = "Plot request could not be fulfilled due to validation errors."
+            suggestions = [
+                "Try a supported plot type",
+                "Check feature names and try again",
+                "Request a dataset overview"
+            ]
+        else:
+            context = "Visualization ready."
+            suggestions = [
+                "Analyze the patterns shown",
+                "Request statistical details",
+                "Generate additional plots"
+            ]
         
         return {
-            'status': 'success',
+            'status': 'error' if ml_result.get('status') == 'error' else 'success',
             'main_response': main_text,
             'context': context,
             'suggestions': suggestions,
@@ -651,10 +683,25 @@ class ResponseFormatter:
     def _format_error_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format an error response"""
         error_message = ml_result.get('message', 'Unknown error occurred')
-        
+        # Enrich error with available sensors/plots if present
+        details = []
+        if 'available_sensors' in ml_result:
+            sensors_sample = ', '.join(ml_result.get('available_sensors', [])[:10])
+            if sensors_sample:
+                details.append(f"Available sensors: {sensors_sample}")
+        if 'supported_plot_types' in ml_result:
+            types = ', '.join(ml_result.get('supported_plot_types', [])[:10])
+            if types:
+                details.append(f"Supported plot types: {types}")
+        if 'available_features_sample' in ml_result:
+            feats = ', '.join(ml_result.get('available_features_sample', [])[:10])
+            if feats:
+                details.append(f"Sample features: {feats}")
+        detail_text = f" ({'; '.join(details)})" if details else ''
+
         return {
             'status': 'error',
-            'main_response': f"Sorry, I couldn't process that request: {error_message}",
+            'main_response': f"Sorry, I couldn't process that request: {error_message}{detail_text}",
             'context': "Please check your request format and try again.",
             'suggestions': [
                 "Make sure you specify a sensor name",
