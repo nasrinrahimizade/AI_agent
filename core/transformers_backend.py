@@ -417,12 +417,12 @@ class Chatbot:
                     
                     if response_type == 'text':
                         # Text-only response - no plots, no context, no suggestions
-                        response = response_data['main_response']
+                        response = self._strip_speaker_segments(response_data['main_response'])
                     elif response_type == 'visual':
                         # Visual response - include plot trigger
                         # Only acknowledge creation if a plot is actually ready
                         if response_data.get('plot_ready', False):
-                            response = response_data['main_response']
+                            response = self._strip_speaker_segments(response_data['main_response'])
                             effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
                             # Normalize aliases
                             if effective_plot in ['line', 'line graph', 'line_graph']:
@@ -461,7 +461,7 @@ class Chatbot:
                                 response += f" [TRIGGER_PLOT:{trigger}]"
                         else:
                             # Validation failed/plot not ready; return main_response as-is
-                            response = response_data['main_response']
+                            response = self._strip_speaker_segments(response_data['main_response'])
                     else:
                         # Auto mode - check if plot is suggested
                         # In auto mode, only trigger creation if plot is actually ready
@@ -500,7 +500,7 @@ class Chatbot:
                             if trigger:
                                 response += f" [TRIGGER_PLOT:{trigger}]"
                         else:
-                            response = response_data['main_response']
+                            response = self._strip_speaker_segments(response_data['main_response'])
                     
                     # Update conversation context and return
                     self.user_messages.append(user_input)
@@ -534,7 +534,7 @@ class Chatbot:
                     return response
                 else:
                     # Validation-first: surface error instead of falling back to LLM
-                    response = response_data.get('main_response') or response_data.get('message') or 'Request could not be processed.'
+                    response = self._strip_speaker_segments(response_data.get('main_response') or response_data.get('message') or 'Request could not be processed.')
                     self.user_messages.append(user_input)
                     self.ai_messages.append(response)
                     self.history.append(("User", user_input))
@@ -560,26 +560,6 @@ class Chatbot:
                 "and generate visualizations (line, histogram, scatter, correlation, time series, frequency). "
                 "I can assess data quality, compare OK vs KO, and answer data science questions concisely."
             )
-            self.user_messages.append(user_input)
-            self.ai_messages.append(response)
-            self.history.append(("User", user_input))
-            self.history.append(("AI", response))
-            self._prune_history()
-            return response
-
-        # Short-circuit general conversation with safe canned replies to avoid hallucinated plot text
-        if analysis.get('is_general_conversation', False):
-            text_lower = user_input.lower().strip()
-            if any(w in text_lower for w in ['thanks', 'thank you', 'thx']):
-                response = "You're welcome."
-            elif any(w in text_lower for w in ['sorry', 'apologize']):
-                response = "No problem."
-            elif any(w in text_lower for w in ['hi', 'hello', 'hey', 'yo', 'sup']):
-                response = "Hi."
-            else:
-                response = "Okay."
-
-            # Update histories and return
             self.user_messages.append(user_input)
             self.ai_messages.append(response)
             self.history.append(("User", user_input))
@@ -723,10 +703,12 @@ class Chatbot:
             else:
                 final_reply = "Okay."
         else:
-            final_reply = candidate_reply
+            final_reply = self._strip_speaker_segments(candidate_reply)
         
-        # Stop at any new speaker label (including USER : with space)
-        reply = re.split(r"(?i)\b(?:User|System|Developer|AI|USER)\s*:", reply)[0].strip()
+        # Stop at any new speaker label (User:, AI:, AI Assistant:, AI Response:, Assistant:, Bot:, System:, Developer:)
+        reply = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", reply)[0].strip()
+        # Also remove any residual speaker prefixes mid-sentence
+        reply = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", reply)
 
         # 11) Update response metrics and learn from interaction
         response_time = time.time() - start_time
@@ -746,6 +728,16 @@ class Chatbot:
 
         self.history.append(("AI", final_reply))
         return final_reply
+
+    def _strip_speaker_segments(self, text: str) -> str:
+        """Remove any trailing or embedded speaker-labeled segments like 'User:' or 'AI:'"""
+        if not text:
+            return text
+        # Keep only content before the first speaker label
+        cleaned = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", str(text))[0].strip()
+        # Remove any residual speaker prefixes inside the line
+        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", cleaned)
+        return cleaned
 
     def _calculate_adaptive_tokens(self, user_input: str, analysis: Dict, base_tokens: int) -> int:
         """Calculate adaptive token count based on user behavior and context - optimized for single-line responses"""
@@ -924,6 +916,9 @@ class Chatbot:
         cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply)
         cleaned_reply = re.sub(r'\.\s*\.', '.', cleaned_reply)
         cleaned_reply = re.sub(r'\s*,\s*', ', ', cleaned_reply)
+
+        # Normalize phrasing like "for OK class" -> "for OK"
+        cleaned_reply = re.sub(r"(?i)\bfor\s+([A-Za-z0-9_]+)\s+class(es)?\b", r"for \1", cleaned_reply)
         
         # Ensure the response ends with proper punctuation
         if cleaned_reply and not cleaned_reply.endswith(('.', '!', '?')):
