@@ -553,13 +553,22 @@ class Chatbot:
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
 
-        # Handle capability/skills questions with concise, project-aware response
+        # Handle capability/skills questions and generic non-data questions explicitly
         if analysis.get('intent') == 'capabilities':
             response = (
                 "I analyze sensor datasets (statistics, comparisons), identify top discriminative features, "
                 "and generate visualizations (line, histogram, scatter, correlation, time series, frequency). "
                 "I can assess data quality, compare OK vs KO, and answer data science questions concisely."
             )
+            self.user_messages.append(user_input)
+            self.ai_messages.append(response)
+            self.history.append(("User", user_input))
+            self.history.append(("AI", response))
+            self._prune_history()
+            return response
+        # If a generic question likely unrelated to data (contains human/world topics), avoid data path
+        if any(w in user_input.lower() for w in ['human', 'life', 'world', 'philosophy', 'biology', 'water', 'food', 'health', 'medicine']):
+            response = "I can answer general questions, but I'm specialized in data analysis. Water is essential for human survival (hydration, cellular function, temperature regulation)."
             self.user_messages.append(user_input)
             self.ai_messages.append(response)
             self.history.append(("User", user_input))
@@ -871,6 +880,11 @@ class Chatbot:
         if not reply:
             return reply
             
+        # Remove any explicit RESPONSE/RESPONSES sections
+        reply = re.split(r"(?i)\bRESPONSES?\s*:", reply)[0]
+        # Also remove any in-line occurrence of RESPONSE: ... tails
+        reply = re.sub(r"(?im)^\s*RESPONSES?\s*:\s*.*$", "", reply)
+
         # Remove any code blocks or inline code to avoid showing code in chat
         # Triple backtick fenced blocks (any language)
         reply = re.sub(r"```[\s\S]*?```", "", reply)

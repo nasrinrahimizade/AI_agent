@@ -176,8 +176,9 @@ class UnifiedParser:
                 r'\b(?:pattern|trend|relationship|insight)\b'
             ],
             CommandType.TOP_FEATURES: [
-                r'\b(?:top|best|most|important|discriminative|separating|separate)\b',
+                r'\b(?:top|best|most|discriminative|separating|separate)\b',
                 r'\b(?:features|indices|characteristics|sensors|measures|statistics)\b',
+                r'\b(?:important)\s+(?:feature|features)\b',
                 r'\b(?:list|show|get|find|identify)\b.*\b(?:top|best|most)\b',
                 r'\b(?:top|best|most)\b.*\b(?:features|indices|characteristics|sensors)\b'
             ],
