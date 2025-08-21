@@ -74,7 +74,7 @@ for feature in top_features['top_features']:
 ### **Plot Generation** (Use for chat interface)
 ```python
 # Generate plots from natural language
-fig = agent.generate_plot("show boxplot of accelerometer data")
+fig = agent.generate_plot("show line graph of accelerometer data")
 
 if fig['status'] == 'success':
     # Display the matplotlib figure in your GUI
@@ -232,7 +232,7 @@ with tab2:
 
 | Request | What it generates |
 |---------|------------------|
-| `"show boxplot of accelerometer"` | OK vs KO comparison |
+| `"show line graph of accelerometer"` | OK vs KO comparison |
 | `"plot histogram of temperature"` | Distribution comparison |
 | `"correlation matrix"` | Feature relationships |
 | `"time series analysis"` | Temporal plots |
@@ -290,7 +290,7 @@ analysis = agent.get_analysis_summary()
 print("✅ Analysis:", analysis['status'])
 
 # Test 3: Plot
-plot = agent.generate_plot("boxplot accelerometer")
+plot = agent.generate_plot("line graph accelerometer")
 print("✅ Plot:", plot['status'])
 
 # If all show 'success', you're ready! 🎉

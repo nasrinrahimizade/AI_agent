@@ -8,6 +8,10 @@ import numpy as np
 from collections import defaultdict, deque
 import time
 
+# Import our new unified system
+from .unified_parser import parse_command
+from .request_handler import handle_request
+
 class Chatbot:
     def __init__(self, model_dir: str, prompt_choice: str = None, history_limit: int = 7):
         # — Load system prompts & memory‐extraction patterns from JSON (or fallback) —
@@ -67,6 +71,10 @@ class Chatbot:
         self.history = []           # list of (AI, User)
         self.history_limit = history_limit
         
+        # Add missing attributes for ML response tracking
+        self.user_messages = []     # Track user messages for ML responses
+        self.ai_messages = []       # Track AI messages for ML responses
+        
         # Enhanced response quality tracking and learning
         self.response_metrics = {
             'total_responses': 0,
@@ -85,43 +93,11 @@ class Chatbot:
         self.min_confidence_threshold = 0.3
         self.max_context_length = 2000  # Maximum context length for model input
         
-        # Pattern learning for plot requests
+        # Pattern learning for plot requests - DEPRECATED: Using unified parser now
         self.learned_plot_patterns = {}
         
-        # Comprehensive command trigger list
-        self.command_triggers = {
-            # Basic plot commands
-            'histogram': ['histogram', 'hist', 'distribution', 'frequency', 'bins', 'count', 'histogram plot'],
-            'boxplot': ['boxplot', 'box', 'quartile', 'whisker', 'outlier', 'box plot'],
-            'scatter': ['scatter', 'scatterplot', 'scatter plot', 'point plot', 'dots', 'scatter chart'],
-            'correlation': ['correlation', 'corr', 'relationship', 'association', 'connection', 'correlation matrix'],
-            'timeseries': ['time series', 'timeseries', 'trend', 'temporal', 'over time', 'timeline', 'time plot'],
-            'line': ['line', 'lineplot', 'line chart', 'trend line', 'continuous', 'line graph'],
-            'bar': ['bar', 'barplot', 'bar chart', 'categorical', 'comparison', 'bar graph'],
-            'pie': ['pie', 'pie chart', 'proportion', 'percentage', 'share', 'pie graph'],
-            
-            # Sensor-specific commands
-            'temperature_analysis': ['temperature', 'temp', 'thermal', 'heat', 'cold', 'warm', 'cool', 'temp analysis'],
-            'pressure_analysis': ['pressure', 'press', 'barometric', 'force', 'stress', 'load', 'pressure analysis'],
-            'humidity_analysis': ['humidity', 'hum', 'moisture', 'wetness', 'damp', 'dry', 'humidity analysis'],
-            'motion_analysis': ['motion', 'movement', 'acceleration', 'vibration', 'shake', 'motion analysis'],
-            'magnetic_analysis': ['magnetic', 'magnetometer', 'compass', 'north', 'field', 'magnetic analysis'],
-            
-            # Analysis commands
-            'statistical_analysis': ['statistics', 'stats', 'statistical', 'analysis', 'analyze', 'examine'],
-            'comparison_analysis': ['compare', 'comparison', 'versus', 'vs', 'difference', 'similar', 'different'],
-            'trend_analysis': ['trend', 'pattern', 'trend analysis', 'pattern analysis', 'trend detection'],
-            'correlation_analysis': ['correlation analysis', 'relationship analysis', 'association analysis'],
-            
-            # General visualization commands
-            'general_visualization': ['visualize', 'visualization', 'chart', 'graph', 'plot', 'display', 'show'],
-            'overview': ['overview', 'summary', 'insight', 'picture', 'view', 'see the pattern', 'give me an overview'],
-            'data_exploration': ['explore', 'investigate', 'find', 'discover', 'look for', 'explore data'],
-            
-            # Indirect request patterns
-            'indirect_plot': ['how does it look', 'let me see', 'show me', 'can you display', 'let\'s see it', 
-                             'what does it look like', 'draw', 'insight', 'see the data', 'look at the data']
-        }
+        # Comprehensive command trigger list - DEPRECATED: Using unified parser now
+        self.command_triggers = {}
 
     def _extract_memory(self, text: str):
         """Enhanced memory extraction with pattern learning"""
@@ -146,43 +122,9 @@ class Chatbot:
         self._learn_new_patterns(text)
 
     def _learn_new_patterns(self, text: str):
-        """Enhanced pattern learning with plot request detection and memory extraction"""
-        text_lower = text.lower()
-        
-        # Look for common patterns like "I work with X", "My data is Y", etc.
-        patterns = [
-            r"i work with (\w+)",
-            r"my data is (\w+)",
-            r"i'm analyzing (\w+)",
-            r"the problem is (\w+)",
-            r"i need to (\w+)"
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text_lower)
-            if match:
-                key = f"learned_{pattern.replace(r'(\w+)', 'value')}"
-                value = match.group(1)
-                if key not in self.memory:
-                    self.memory[key] = value
-        
-        # Learn plot request patterns that led to successful plot generation
-        plot_patterns = [
-            r"(\w+) (?:plot|chart|graph|visualization)",
-            r"(?:show|display|create|draw) (\w+)",
-            r"(\w+) (?:overview|summary|insight)",
-            r"(?:let me see|show me) (\w+)",
-            r"(\w+) (?:trend|pattern|distribution)"
-        ]
-        
-        for pattern in plot_patterns:
-            match = re.search(pattern, text_lower)
-            if match:
-                plot_type = match.group(1)
-                if plot_type not in self.learned_plot_patterns:
-                    self.learned_plot_patterns[plot_type] = 1
-                else:
-                    self.learned_plot_patterns[plot_type] += 1
+        """Enhanced pattern learning with plot request detection and memory extraction - DEPRECATED: Using unified parser now"""
+        # This method is deprecated - we now use the unified parser
+        pass
 
     def _analyze_user_input(self, user_input: str) -> Dict:
         """Enhanced user input analysis with learning capabilities"""
@@ -231,16 +173,16 @@ class Chatbot:
             analysis['expertise_level'] = 'beginner'
             return analysis
         
-        # Command detection and prompt adjustment
-        analysis['commands_detected'] = self._detect_commands(text_lower)
-        analysis['prompt_adjustments'] = self._generate_prompt_adjustments(analysis['commands_detected'])
+        # Command detection and prompt adjustment - DEPRECATED: Using unified parser now
+        analysis['commands_detected'] = []
+        analysis['prompt_adjustments'] = []
         
-        # Contextual intent recognition based on conversation history
-        analysis['contextual_plot_request'] = self._detect_contextual_plot_request(user_input, analysis)
+        # Contextual intent recognition based on conversation history - DEPRECATED: Using unified parser now
+        analysis['contextual_plot_request'] = False
         
         # Enhanced intent detection with confidence scoring for data-related questions
         intent_keywords = {
-            'visualization': ['plot', 'show', 'display', 'visualize', 'chart', 'graph', 'draw', 'create', 'histogram', 'boxplot', 'scatter', 'correlation', 'time series'],
+            'visualization': ['plot', 'show', 'display', 'visualize', 'chart', 'graph', 'draw', 'create', 'histogram', 'line graph', 'scatter', 'correlation', 'time series'],
             'analysis': ['analyze', 'compare', 'difference', 'statistics', 'mean', 'std', 'correlation', 'pattern'],
             'help': ['help', 'explain', 'what is', 'how to', 'why', 'when'],
             'exploration': ['explore', 'investigate', 'find', 'discover', 'look for'],
@@ -259,26 +201,16 @@ class Chatbot:
                 if intent == 'visualization':
                     analysis['plot_request'] = True
                     # Check for specific plot types
-                    specific_plots = ['histogram', 'boxplot', 'scatter', 'correlation', 'time series', 'line', 'bar']
+                    specific_plots = ['histogram', 'line graph', 'scatter', 'correlation', 'time series', 'line', 'bar']
                     if any(plot in text_lower for plot in specific_plots):
                         analysis['specific_plot_type'] = True
                 elif intent == 'analysis':
                     analysis['analysis_type'] = 'statistical'
         
-        # Enhanced plot request detection using learned patterns and contextual clues
-        if not analysis['plot_request']:
-            # Check learned plot patterns
-            for pattern, count in self.learned_plot_patterns.items():
-                if pattern in text_lower and count > 1:  # Only use patterns that appeared multiple times
-                    analysis['plot_request'] = True
-                    analysis['confidence'] += 0.2
-                    break
-            
-            # Check contextual plot request
-            if analysis.get('contextual_plot_request', False):
-                analysis['plot_request'] = True
-                analysis['confidence'] += 0.3
-            
+        # Enhanced plot request detection using learned patterns and contextual clues - DEPRECATED: Using unified parser now
+        analysis['plot_request'] = False
+        analysis['specific_plot_type'] = False
+        
         # Enhanced sensor detection with context
         sensors = {
             'accelerometer': ['acc', 'acceleration', 'motion', 'movement', 'vibration', 'shake'],
@@ -344,7 +276,7 @@ class Chatbot:
             
         # Track recent questions (keep only last 3)
         question_context = {
-            'text': user_input[:50],  # Shorter text
+            'text': user_input[:60],  # Shorter text
             'intent': analysis['intent'],
             'sensor': analysis['sensor_mentioned']
         }
@@ -447,30 +379,133 @@ class Chatbot:
         lines.append("AI:")
         return "\n".join(lines)
 
-    def generate(self, user_input: str, max_new_tokens: int = 128) -> str:
+    def generate(self, user_input: str, max_new_tokens: int =250) -> str:
         start_time = time.time()
         
-        # COMMAND DETECTION: Check if this is a direct command before processing
-        detected_command = self.detect_command(user_input)
-        if detected_command:
-            # Skip LLM processing for commands, return direct response
-            response = "Yes, I will do that"
+        # IMPORTANT: This method has TWO response paths:
+        # 1. ML SYSTEM PATH: For data analysis requests (returns early, no decode)
+        # 2. LLM FALLBACK PATH: For general conversation (uses decode function)
+        
+        # 1) Use our new unified parser to detect command type and response preference
+        try:
+            parsed_command = parse_command(user_input)
             
-            # Add appropriate trigger marker based on command type
-            if detected_command in ['histogram', 'boxplot', 'scatter', 'correlation', 'timeseries', 'line', 'bar', 'pie']:
-                response += f" [TRIGGER_PLOT:{detected_command}]"
-            elif detected_command in ['temperature_analysis', 'pressure_analysis', 'humidity_analysis', 'motion_analysis', 'magnetic_analysis']:
-                response += f" [TRIGGER_PLOT:{detected_command}]"
-            elif detected_command in ['statistical_analysis', 'comparison_analysis', 'trend_analysis', 'correlation_analysis']:
-                response += f" [TRIGGER_ANALYSIS:{detected_command}]"
-            elif detected_command in ['general_visualization', 'overview', 'data_exploration', 'indirect_plot']:
-                response += f" [TRIGGER_PLOT:general_visualization]"
-            
-            # Update conversation context and return
-            self.history.append(("User", user_input))
-            self.history.append(("AI", response))
-            self._prune_history()
-            return response
+            # 2) Check if this is a data analysis request that should use our ML system
+            if parsed_command.command_type.value != 'unknown':
+                # Use our request handler for structured data analysis
+                response_data = handle_request(user_input)
+                
+                if response_data.get('status') == 'success':
+                    # Format the response based on the response type
+                    response_type = response_data.get('response_type', 'auto')
+                    
+                    if response_type == 'text':
+                        # Text-only response - no plots, no context, no suggestions
+                        response = response_data['main_response']
+                    elif response_type == 'visual':
+                        # Visual response - include plot trigger
+                        response = response_data['main_response']
+                        # Prefer the actual plot_type returned from the pipeline over suggestion
+                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                        # Normalize aliases
+                        if effective_plot in ['line', 'line graph', 'line_graph']:
+                            response = "📈 Creating line graph..."
+                            trigger = 'line_graph'
+                        elif effective_plot in ['hist', 'histogram']:
+                            response = "📊 Creating histogram..."
+                            trigger = 'histogram'
+                        elif effective_plot in ['scatter', 'scatterplot']:
+                            response = "💫 Creating scatter plot..."
+                            trigger = 'scatter'
+                        elif effective_plot in ['correlation', 'correlation_matrix']:
+                            response = "🔗 Creating correlation matrix..."
+                            trigger = 'correlation'
+                        elif effective_plot in ['timeseries', 'time series']:
+                            response = "🕒 Creating time series plot..."
+                            trigger = 'timeseries'
+                        elif effective_plot in ['frequency', 'fft']:
+                            response = "📡 Creating frequency domain plot..."
+                            trigger = 'frequency'
+                        else:
+                            # Fallback to suggestion if available
+                            plot_suggestion = response_data.get('plot_suggestion')
+                            if plot_suggestion == 'line_graph':
+                                response = "📈 Creating line graph..."; trigger = 'line_graph'
+                            elif plot_suggestion == 'histogram':
+                                response = "📊 Creating histogram..."; trigger = 'histogram'
+                            elif plot_suggestion == 'scatter':
+                                response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                            elif plot_suggestion == 'correlation':
+                                response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                            elif plot_suggestion == 'timeseries':
+                                response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                            elif plot_suggestion == 'frequency':
+                                response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                            else:
+                                trigger = (plot_suggestion or 'line_graph')
+                                response = f"📊 Creating {trigger}..."
+
+                        response += f" [TRIGGER_PLOT:{trigger}]"
+                    else:
+                        # Auto mode - check if plot is suggested
+                        response = response_data['main_response']
+                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                        if effective_plot in ['line', 'line graph', 'line_graph']:
+                            response = "📈 Creating line graph..."; trigger = 'line_graph'
+                        elif effective_plot in ['hist', 'histogram']:
+                            response = "📊 Creating histogram..."; trigger = 'histogram'
+                        elif effective_plot in ['scatter', 'scatterplot']:
+                            response = "💫 Creating scatter plot..."; trigger = 'scatter'
+                        elif effective_plot in ['correlation', 'correlation_matrix']:
+                            response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
+                        elif effective_plot in ['timeseries', 'time series']:
+                            response = "🕒 Creating time series plot..."; trigger = 'timeseries'
+                        elif effective_plot in ['frequency', 'fft']:
+                            response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                        else:
+                            trigger = (response_data.get('plot_suggestion') or 'line_graph')
+                            response = f"📊 Creating {trigger}..."
+
+                        response += f" [TRIGGER_PLOT:{trigger}]"
+                    
+                    # Update conversation context and return
+                    self.user_messages.append(user_input)
+                    self.ai_messages.append(response)
+                    
+                    # Also update the main history for consistency
+                    self.history.append(("User", user_input))
+                    self.history.append(("AI", response))
+                    self._prune_history()
+                    
+                    # Update response metrics for ML responses
+                    response_time = time.time() - start_time
+                    ml_analysis = {
+                        'intent': 'ml_analysis',
+                        'confidence': 0.9,
+                        'expertise_level': 'intermediate',
+                        'sensor_mentioned': None,
+                        'plot_request': response_type == 'visual',
+                        'specific_plot_type': False,
+                        'urgency': 'normal',
+                        'emotional_tone': 'neutral',
+                        'complexity_level': 'medium',
+                        'follow_up_question': False,
+                        'clarification_needed': False,
+                        'is_general_conversation': False,
+                        'commands_detected': [],
+                        'prompt_adjustments': []
+                    }
+                    self._update_response_metrics(response, ml_analysis, response_time)
+                    
+                    return response
+                    
+        except Exception as e:
+            # Fallback to old system if there's an error
+            pass
+        
+        # 3) Fallback to old LLM-based system for non-data requests
+        # Note: The decode function below is ONLY for LLM-generated responses, 
+        # NOT for ML responses which are handled above and returned directly
         
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
@@ -520,6 +555,8 @@ class Chatbot:
             no_repeat_ngram_size=3,  # Prevent repetition of 3-grams
         )
 
+        # DECODE FUNCTION: This is ONLY for LLM-generated responses, NOT for ML responses
+        # ML responses are handled above and returned directly without going through decode
         decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         # strip out the prompt echo - use more robust method to avoid losing first character
         if decoded.startswith(prompt):
@@ -597,8 +634,8 @@ class Chatbot:
         reply = self._clean_response(reply)
         reply = self._enhance_response_quality(reply, user_input, analysis)
         
-        # Stop at any new speaker label
-        reply = re.split(r"(?i)\b(?:User|System|Developer|AI):", reply)[0].strip()
+        # Stop at any new speaker label (including USER : with space)
+        reply = re.split(r"(?i)\b(?:User|System|Developer|AI|USER)\s*:", reply)[0].strip()
 
         # 11) Update response metrics and learn from interaction
         response_time = time.time() - start_time
@@ -751,8 +788,22 @@ class Chatbot:
         if not reply:
             return reply
             
-        # Remove excessive whitespace
-        reply = re.sub(r'\s+', ' ', reply).strip()
+        # Remove any code blocks or inline code to avoid showing code in chat
+        # Triple backtick fenced blocks (any language)
+        reply = re.sub(r"```[\s\S]*?```", "", reply)
+        # Inline code wrapped in single backticks
+        reply = re.sub(r"`[^`]*`", "", reply)
+        # HTML <pre> blocks if present
+        reply = re.sub(r"<pre[\s\S]*?>[\s\S]*?</pre>", "", reply, flags=re.IGNORECASE)
+
+        # Preserve single newlines for table formatting, collapse excessive spaces
+        # Replace Windows/Mac newlines with \n
+        reply = reply.replace('\r\n', '\n').replace('\r', '\n')
+        # Collapse multiple blank lines to a single blank line
+        reply = re.sub(r'\n\n\n+', '\n\n', reply)
+        # For each line, collapse internal runs of spaces > 2 to 1 (keep at most 2 to help alignment)
+        reply = '\n'.join([re.sub(r' {3,}', '  ', line).rstrip() for line in reply.split('\n')])
+        reply = reply.strip()
         
         # Remove repetitive sentences
         sentences = reply.split('.')
@@ -1045,215 +1096,36 @@ class Chatbot:
         }
 
     def _detect_commands(self, text_lower: str) -> List[str]:
-        """Enhanced command detection with expanded synonyms and semantic matching"""
-        commands = []
-        
-        # Expanded plot-related commands with synonyms
-        plot_synonyms = {
-            'create_histogram': ['histogram', 'hist', 'distribution', 'frequency', 'bins', 'count'],
-            'create_boxplot': ['boxplot', 'box', 'quartile', 'whisker', 'outlier'],
-            'create_scatter': ['scatter', 'scatterplot', 'scatter plot', 'point plot', 'dots'],
-            'create_correlation': ['correlation', 'corr', 'relationship', 'association', 'connection'],
-            'create_timeseries': ['time series', 'timeseries', 'trend', 'temporal', 'over time', 'timeline'],
-            'create_line': ['line', 'lineplot', 'line chart', 'trend line', 'continuous'],
-            'create_bar': ['bar', 'barplot', 'bar chart', 'categorical', 'comparison'],
-            'create_pie': ['pie', 'pie chart', 'proportion', 'percentage', 'share']
-        }
-        
-        # Check for plot synonyms
-        for command, synonyms in plot_synonyms.items():
-            if any(syn in text_lower for syn in synonyms):
-                commands.append(command)
-        
-        # Indirect plot request phrases
-        indirect_plot_phrases = [
-            'how does it look', 'let me see', 'show me', 'display', 'visualize', 'illustrate',
-            'give me an overview', 'can you display', 'let\'s see it', 'show the data',
-            'what does it look like', 'draw', 'chart', 'graph', 'insight', 'trend',
-            'overview', 'summary', 'picture', 'view', 'see the pattern'
-        ]
-        
-        if any(phrase in text_lower for phrase in indirect_plot_phrases):
-            commands.append('create_visualization')
-        
-        # Analysis commands
-        if any(word in text_lower for word in ['analyze', 'analysis', 'examine', 'investigate']):
-            commands.append('perform_analysis')
-        if any(word in text_lower for word in ['compare', 'comparison', 'versus', 'vs', 'difference']):
-            commands.append('perform_comparison')
-        if any(word in text_lower for word in ['statistics', 'stats', 'numbers', 'metrics', 'values']):
-            commands.append('provide_statistics')
-        
-        # Behavior commands
-        if any(word in text_lower for word in ['explain', 'what is', 'how to', 'why', 'meaning']):
-            commands.append('explanation_mode')
-        if any(word in text_lower for word in ['simple', 'basic', 'easy', 'clear', 'straightforward']):
-            commands.append('simple_mode')
-        if any(word in text_lower for word in ['detailed', 'comprehensive', 'advanced', 'thorough', 'in-depth']):
-            commands.append('detailed_mode')
-        
-        return commands
-
-    def _generate_prompt_adjustments(self, commands: List[str]) -> List[str]:
-        """Generate prompt adjustments based on detected commands"""
-        adjustments = []
-        
-        for command in commands:
-            if command == 'create_histogram':
-                adjustments.append("Focus: Create histogram plot only. No explanation of what histogram is.")
-            elif command == 'create_boxplot':
-                adjustments.append("Focus: Create boxplot plot only. No explanation of what boxplot is.")
-            elif command == 'create_scatter':
-                adjustments.append("Focus: Create scatter plot only. No explanation of what scatter plot is.")
-            elif command == 'create_correlation':
-                adjustments.append("Focus: Create correlation plot only. No explanation of what correlation is.")
-            elif command == 'create_timeseries':
-                adjustments.append("Focus: Create time series plot only. No explanation of what time series is.")
-            elif command == 'perform_analysis':
-                adjustments.append("Focus: Perform analysis only. No explanations of methods or results.")
-            elif command == 'perform_comparison':
-                adjustments.append("Focus: Perform comparison only. No explanations of comparison methods.")
-            elif command == 'provide_statistics':
-                adjustments.append("Focus: Provide statistics only. No explanations of what they mean.")
-            elif command == 'explanation_mode':
-                adjustments.append("Mode: Explanation allowed for this request only.")
-            elif command == 'simple_mode':
-                adjustments.append("Mode: Use simplest possible language and explanations.")
-            elif command == 'detailed_mode':
-                adjustments.append("Mode: Provide detailed analysis and explanations.")
-        
-        return adjustments
-
+        """Detect commands in user input - DEPRECATED: Use unified parser instead"""
+        # This method is deprecated - we now use the unified parser
+        return []
+    
     def detect_command(self, user_input: str) -> Optional[str]:
-        """Detect if user input matches any command trigger and return command ID"""
-        text_lower = user_input.lower().strip()
-        
-        # Check for exact matches first (highest priority)
-        for command_id, triggers in self.command_triggers.items():
-            for trigger in triggers:
-                if trigger == text_lower:
-                    return command_id
-        
-        # Check for partial matches (medium priority)
-        for command_id, triggers in self.command_triggers.items():
-            for trigger in triggers:
-                if trigger in text_lower and len(trigger) > 2:  # Avoid matching very short words
-                    return command_id
-        
-        # Check for word boundary matches (lower priority)
-        for command_id, triggers in self.command_triggers.items():
-            for trigger in triggers:
-                # Use word boundary matching to avoid false positives
-                if re.search(r'\b' + re.escape(trigger) + r'\b', text_lower):
-                    return command_id
-        
+        """Detect if user input matches any command trigger - DEPRECATED: Use unified parser instead"""
+        # This method is deprecated - we now use the unified parser
         return None
 
+    def _generate_prompt_adjustments(self, commands: List[str]) -> List[str]:
+        """Generate prompt adjustments based on detected commands - DEPRECATED: Use unified parser instead"""
+        # This method is deprecated - we now use the unified parser
+        return []
+
     def _determine_plot_type(self, analysis: Dict) -> str:
-        """Determine the specific plot type based on analysis and commands"""
-        commands = analysis.get('commands_detected', [])
-        
-        # Map commands to plot types
-        plot_type_mapping = {
-            'create_histogram': 'histogram',
-            'create_boxplot': 'boxplot',
-            'create_scatter': 'scatter',
-            'create_correlation': 'correlation',
-            'create_timeseries': 'timeseries',
-            'create_line': 'line',
-            'create_bar': 'bar',
-            'create_pie': 'pie'
-        }
-        
-        # Check for specific plot type commands
-        for command in commands:
-            if command in plot_type_mapping:
-                return plot_type_mapping[command]
-        
-        # Check for specific plot type keywords in the original input
-        if analysis.get('sensor_mentioned'):
-            sensor = analysis['sensor_mentioned']
-            if 'temperature' in sensor:
-                return 'temperature_analysis'
-            elif 'pressure' in sensor:
-                return 'pressure_analysis'
-            elif 'humidity' in sensor:
-                return 'humidity_analysis'
-            elif 'accelerometer' in sensor:
-                return 'motion_analysis'
-        
+        """Determine the specific plot type based on analysis and commands - DEPRECATED: Using unified parser now"""
+        # This method is deprecated - we now use the unified parser
         return 'general_visualization'
 
     def _detect_contextual_plot_request(self, user_input: str, analysis: Dict) -> bool:
-        """Detect plot requests based on conversation context and indirect phrases"""
-        text_lower = user_input.lower()
-        
-        # Check if this is a follow-up to previous plot-related conversation
-        if len(self.history) > 0:
-            recent_context = self._get_recent_conversation_context()
-            
-            # If recent context was about data/plots, treat vague requests as plot requests
-            if recent_context.get('plot_related', False):
-                vague_plot_phrases = [
-                    'let\'s see', 'show me', 'display', 'visualize', 'illustrate',
-                    'give me an overview', 'can you display', 'let\'s see it',
-                    'what does it look like', 'draw', 'chart', 'graph', 'insight',
-                    'overview', 'summary', 'picture', 'view', 'see the pattern',
-                    'how does it look', 'show the data'
-                ]
-                
-                if any(phrase in text_lower for phrase in vague_plot_phrases):
-                    return True
-            
-            # Check for repeated references to the same dataset/topic
-            if recent_context.get('repeated_topic', False):
-                if any(word in text_lower for word in ['again', 'more', 'another', 'similar', 'same']):
-                    return True
-        
-        # Check for indirect plot requests that might be missed by direct keyword matching
-        indirect_indicators = [
-            'trend', 'pattern', 'distribution', 'relationship', 'comparison',
-            'overview', 'summary', 'insight', 'visual', 'picture', 'chart',
-            'graph', 'display', 'show', 'see', 'look', 'view'
-        ]
-        
-        if any(indicator in text_lower for indicator in indirect_indicators):
-            # Additional context check - if user is asking about data, likely wants visualization
-            if analysis.get('sensor_mentioned') or analysis.get('intent') in ['analysis', 'exploration']:
-                return True
-        
+        """Detect plot requests based on conversation context and indirect phrases - DEPRECATED: Using unified parser now"""
+        # This method is deprecated - we now use the unified parser
         return False
 
     def _get_recent_conversation_context(self) -> Dict:
-        """Get context from recent conversation turns"""
-        context = {
+        """Get context from recent conversation turns - DEPRECATED: Using unified parser now"""
+        # This method is deprecated - we now use the unified parser
+        return {
             'plot_related': False,
             'repeated_topic': False,
             'current_topic': None,
             'topic_frequency': {}
         }
-        
-        if len(self.history) < 2:
-            return context
-        
-        # Check last few turns for plot-related context
-        recent_turns = self.history[-3:]  # Last 3 turns
-        
-        for speaker, text in recent_turns:
-            if speaker == "User":
-                text_lower = text.lower()
-                
-                # Check for plot-related keywords in recent context
-                plot_keywords = ['plot', 'chart', 'graph', 'visualize', 'histogram', 'boxplot', 'scatter']
-                if any(keyword in text_lower for keyword in plot_keywords):
-                    context['plot_related'] = True
-                
-                # Track topic frequency
-                for topic in ['temperature', 'pressure', 'humidity', 'accelerometer', 'sensor', 'data']:
-                    if topic in text_lower:
-                        context['topic_frequency'][topic] = context['topic_frequency'].get(topic, 0) + 1
-                        if context['topic_frequency'][topic] > 1:
-                            context['repeated_topic'] = True
-                            context['current_topic'] = topic
-        
-        return context

@@ -6,12 +6,59 @@ from PySide6.QtCore import Qt, QEvent, QSize
 from datetime import datetime
 import re
 from core.transformers_backend import Chatbot
-from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_boxplot_accelerometer, \
+from core.ml_plotter import get_plotting_engine, prepare_example_plot, prepare_line_graph_accelerometer, \
                            prepare_temperature_histogram, prepare_correlation_matrix, \
                            prepare_time_series_analysis, prepare_frequency_domain_plot, \
                            prepare_scatter_plot_features
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from core.ml_interface import ml_interface
+# from PySide6.QtCore import Qt, QEvent, QSize, QThread, pyqtSignal
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QEvent, QSize, QThread, Signal
 
+class AIWorkerThread(QThread):
+    # Signals to communicate with main thread
+    response_ready = Signal(str)    # AI response text
+    plot_ready = Signal(object)     # Plot figure object
+    error_occurred = Signal(str)    # Error message
+    
+    def __init__(self, chatbot, plotting_engine, parent=None):
+        super().__init__(parent)
+        self.chatbot = chatbot
+        self.plotting_engine = plotting_engine
+        self.user_message = ""
+        self.chat_view = None
+        
+    def set_request(self, user_message, chat_view):
+        self.user_message = user_message
+        self.chat_view = chat_view
+        
+    def run(self):
+        """This runs in the background thread"""
+        try:
+            # Generate AI response
+            ai_response = self.chatbot.generate(self.user_message)
+            self.response_ready.emit(ai_response)
+            
+            # Check for plot triggers and generate plot if needed
+            plot_fig = None
+            
+            # Check for trigger markers
+            plot_fig = self.chat_view._check_trigger_markers(ai_response)
+            
+            # If no trigger markers, check old plot triggers
+            if not plot_fig:
+                plot_fig = self.chat_view._check_plot_triggers(ai_response, self.user_message)
+            
+            # Emit plot if generated
+            if plot_fig:
+                self.plot_ready.emit(plot_fig)
+            else:
+                self.plot_ready.emit(None)
+                
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+            
 class ChatView(QWidget):
     def __init__(self, parent=None, plot_view=None, open_dataset_callback=None):
         super().__init__(parent)
@@ -28,9 +75,22 @@ class ChatView(QWidget):
         model_dir = "Llama-3.2-1B"
         self.chatbot = Chatbot(model_dir=model_dir)
         
+        # Create worker thread
+        self.ai_worker = AIWorkerThread(self.chatbot, self.plotting_engine, self)
+        
+        # Connect signals
+        self.ai_worker.response_ready.connect(self._on_response_ready)
+        self.ai_worker.plot_ready.connect(self._on_plot_ready)
+        self.ai_worker.error_occurred.connect(self._on_error)
+        
+        # Track loading state
+        self.is_loading = False
+        self.pending_response = ""
+        self.pending_plot = None
+
         # Plot request mapping for backward compatibility
         self.plot_mapping = {
-            'boxplot': prepare_boxplot_accelerometer,
+            'line graph': prepare_line_graph_accelerometer,
             'histogram': prepare_temperature_histogram,
             'correlation': prepare_correlation_matrix,
             'time series': prepare_time_series_analysis,
@@ -42,7 +102,7 @@ class ChatView(QWidget):
         # Strict allowlist of plot-triggering phrases (lowercase, punctuation-insensitive)
         self.allowed_plot_requests_specific = {
             # Basic plot requests routed to specific plot functions
-            'show me a boxplot': 'boxplot',
+            'show me a line graph': 'line graph',
             'create a histogram': 'histogram',
             'display correlation matrix': 'correlation',
             'generate time series analysis': 'time series',
@@ -57,15 +117,91 @@ class ChatView(QWidget):
             'analyze temperature sensors',
             'compare pressure readings',
             'display humidity distribution',
+            'generate a plot of accelerometer data',
+            'show me humidity data',
+            'create a line graph of temperature data',
+            'analyze accelerometer data',
+            'show temperature data',
+            'display pressure data',
+            'create humidity plot',
+            'generate accelerometer plot',
+            'show me temperature sensors',
+            'analyze humidity sensors',
+            'compare accelerometer readings',
             # Advanced
             'show me the most discriminative features',
             'create a comparison between ok and ko conditions',
             'generate a feature relationship matrix',
         ])
 
+    def _show_loading_indicator(self):
+        """Show loading indicator"""
+        from PySide6.QtCore import QTimer
+        
+        # Create loading message
+        timestamp = datetime.now().strftime("%H:%M")
+        loading_text = f"[{timestamp}] AI Assistant: Thinking..."
+        
+        self.loading_label = QLabel(loading_text)
+        self.loading_label.setWordWrap(True)
+        self.loading_label.setAlignment(Qt.AlignLeft)
+        
+        # Style as loading
+        loading_font = QFont()
+        loading_font.setPointSize(12)
+        loading_font.setItalic(True)
+        self.loading_label.setFont(loading_font)
+        self.loading_label.setStyleSheet("color: #666666;")
+        
+        # Create container
+        self.loading_container = QWidget()
+        loading_layout = QVBoxLayout(self.loading_container)
+        loading_layout.addWidget(self.loading_label)
+        
+        # Add to chat
+        self.chat_layout.insertWidget(self.chat_layout.count() - 1, self.loading_container)
+        
+        # Animate dots
+        self.dot_count = 0
+        self.dots_timer = QTimer()
+        self.dots_timer.timeout.connect(self._update_loading_dots)
+        self.dots_timer.start(500)
+        
+        # Scroll to bottom
+        self._scroll_to_bottom()
+
+    def _update_loading_dots(self):
+        """Update loading animation"""
+        dots = "." * (self.dot_count % 4)
+        timestamp = datetime.now().strftime("%H:%M")
+        self.loading_label.setText(f"[{timestamp}] AI Assistant: Thinking{dots}")
+        self.dot_count += 1
+
+    def _hide_loading_indicator(self):
+        """Remove loading indicator"""
+        if hasattr(self, 'dots_timer'):
+            self.dots_timer.stop()
+            self.dots_timer.deleteLater()
+        if hasattr(self, 'loading_container'):
+            self.loading_container.setParent(None)
+            self.loading_container.deleteLater()
+
+    def _scroll_to_bottom(self):
+        """Scroll chat to bottom"""
+        QApplication.processEvents()  # Process pending events
+        self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
+        )
+
     def set_dataframe(self, df):
-        # Optional: if ChatView needs the dataframe, store it for context or future use
+        # Store the dataframe
         self._dataframe = df
+        
+        # Get dataset overview from ML interface
+        overview = ml_interface.get_dataset_overview()
+        
+        # Display the overview in chat
+        self._display_dataset_overview(overview)
 
     def setup_ui(self):
         """Setup the chat interface UI"""
@@ -154,10 +290,15 @@ class ChatView(QWidget):
         message_label.setWordWrap(True)
         message_label.setAlignment(alignment)
         
-        # Set chat font
+        # Set chat font (default, no font changes for tables) and preserve wrapping
         chat_font = QFont()
         chat_font.setPointSize(12)
         message_label.setFont(chat_font)
+        message_label.setTextFormat(Qt.PlainText)
+        message_label.setWordWrap(True)
+        # Enable text selection and copy (Ctrl+C)
+        message_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
+        message_label.setFocusPolicy(Qt.StrongFocus)
         
         message_layout.addWidget(message_label)
         
@@ -180,9 +321,13 @@ class ChatView(QWidget):
         )
 
     def _send_message(self):
-        """Send the current message"""
+        """Send message using async worker thread"""
         message = self.input_field.toPlainText().strip()
         if not message:
+            return
+        
+        # Prevent multiple simultaneous requests
+        if self.is_loading:
             return
         
         # Display user message
@@ -191,31 +336,36 @@ class ChatView(QWidget):
         # Clear input field
         self.input_field.clear()
         
-        # Get AI response
-        self._ai_reply(message)
+        # Show loading and start async processing
+        self.is_loading = True
+        self._show_loading_indicator()
+        
+        # Start worker thread
+        self.ai_worker.set_request(message, self)
+        self.ai_worker.start()
 
-    def _ai_reply(self, user_message: str):
-        """Get AI response and handle plot triggers"""
-        try:
-            # Get AI response using the correct method
-            ai_response = self.chatbot.generate(user_message)
+    # def _ai_reply(self, user_message: str):
+    #     """Get AI response and handle plot triggers"""
+    #     try:
+    #         # Get AI response using the correct method
+    #         ai_response = self.chatbot.generate(user_message)
             
-            # Check for new trigger markers first (e.g., [TRIGGER_PLOT:histogram])
-            plot_fig = self._check_trigger_markers(ai_response)
+    #         # Check for new trigger markers first (e.g., [TRIGGER_PLOT:histogram])
+    #         plot_fig = self._check_trigger_markers(ai_response)
             
-            # If no trigger markers found, check old plot triggers for backward compatibility
-            if not plot_fig:
-                plot_fig = self._check_plot_triggers(ai_response, user_message)
+    #         # If no trigger markers found, check old plot triggers for backward compatibility
+    #         if not plot_fig:
+    #             plot_fig = self._check_plot_triggers(ai_response, user_message)
             
-            # Clean the response by removing trigger markers before displaying
-            clean_response = self._clean_response_from_triggers(ai_response)
+    #         # Clean the response by removing trigger markers before displaying
+    #         clean_response = self._clean_response_from_triggers(ai_response)
             
-            # Display AI response with plot if available
-            self._append_message("AI Assistant", clean_response, Qt.AlignLeft, plot_fig)
+    #         # Display AI response with plot if available
+    #         self._append_message("AI Assistant", clean_response, Qt.AlignLeft, plot_fig)
             
-        except Exception as e:
-            error_msg = f"Error getting AI response: {str(e)}"
-            self._append_message("System", error_msg, Qt.AlignLeft)
+    #     except Exception as e:
+    #         error_msg = f"Error getting AI response: {str(e)}"
+    #         self._append_message("System", error_msg, Qt.AlignLeft)
 
     def _check_plot_triggers(self, ai_response: str, user_message: str):
         """Check AI response for keywords that should trigger plot display"""
@@ -234,7 +384,45 @@ class ChatView(QWidget):
         if normalized_user in self.allowed_plot_requests_engine:
             return self.trigger_natural_plot_request(user_message)
         
+        # NEW: Detect natural language plot requests that weren't caught by allowlists
+        if self._is_natural_plot_request(user_lower):
+            return self.trigger_natural_plot_request(user_message)
+        
         return None
+
+    def _is_natural_plot_request(self, user_message: str) -> bool:
+        """Detect if a user message is a natural language plot request"""
+        user_lower = user_message.lower()
+        
+        # Action verbs indicating intent to produce something
+        action_keywords = ['show', 'display', 'plot', 'visualize', 'create', 'generate', 'draw', 'render', 'make']
+        
+        # Sensor-related keywords
+        sensor_keywords = ['temperature', 'temp', 'humidity', 'hum', 'pressure', 'press', 'accelerometer', 'acc', 
+                          'gyroscope', 'gyro', 'magnetometer', 'mag', 'microphone', 'mic', 'sensor', 'data']
+        
+        # Plot-related keywords
+        plot_keywords = ['plot', 'chart', 'graph', 'visualization', 'line', 'histogram', 'correlation', 'scatter', 
+                        'time series', 'frequency', 'fft', 'spectrum', 'distribution', 'comparison', 'matrix']
+        
+        # Check if message contains action intent
+        has_action = any(keyword in user_lower for keyword in action_keywords)
+        
+        # Check if message contains sensor or plot keywords
+        has_sensor_or_plot = any(keyword in user_lower for keyword in sensor_keywords + plot_keywords)
+        
+        # Additional check for specific patterns
+        specific_patterns = [
+            'generate a plot',
+            'show me',
+            'create a',
+            'display',
+            'analyze',
+            'compare'
+        ]
+        has_specific_pattern = any(pattern in user_lower for pattern in specific_patterns)
+        
+        return (has_action and has_sensor_or_plot) or has_specific_pattern
 
     def _detect_natural_plot_request(self, user_message: str, ai_response: str) -> str:
         """Detect natural language plot requests"""
@@ -244,8 +432,7 @@ class ChatView(QWidget):
         action_keywords = ['show', 'display', 'plot', 'visualize', 'create', 'generate', 'draw', 'render']
         # Plot-related nouns/types
         noun_keywords = [
-            'plot', 'chart', 'graph', 'visualization',
-            'boxplot', 'histogram', 'correlation', 'scatter', 'time series',
+            'plot', 'chart', 'graph', 'visualization', 'histogram', 'correlation', 'scatter', 'time series',
             'frequency', 'fft', 'spectrum', 'distribution', 'comparison', 'matrix'
         ]
 
@@ -282,8 +469,8 @@ class ChatView(QWidget):
         if not has_intent:
             return None
 
-        if any(word in response_lower for word in ['boxplot', 'accelerometer', 'acceleration']):
-            return 'boxplot'
+        if any(word in response_lower for word in ['line graph', 'accelerometer', 'acceleration']):
+            return 'line graph'
         elif any(word in response_lower for word in ['histogram', 'distribution']):
             return 'histogram'
         elif any(word in response_lower for word in ['correlation', 'matrix', 'relationships']):
@@ -364,12 +551,12 @@ class ChatView(QWidget):
     def _handle_plot_trigger(self, plot_type: str):
         """Handle plot triggers based on plot type"""
         try:
-            if plot_type in ['histogram', 'boxplot', 'scatter', 'correlation', 'timeseries', 'line', 'bar', 'pie']:
+            if plot_type in ['histogram', 'line graph', 'scatter', 'correlation', 'timeseries', 'line', 'bar', 'pie']:
                 # Basic plot types - use existing specific plot functions
                 if plot_type == 'histogram':
                     return self.trigger_specific_plot('histogram')
-                elif plot_type == 'boxplot':
-                    return self.trigger_specific_plot('boxplot')
+                elif plot_type == 'line graph' or plot_type == 'line':
+                    return self.trigger_specific_plot('line graph')
                 elif plot_type == 'correlation':
                     return self.trigger_specific_plot('correlation')
                 elif plot_type == 'timeseries':
@@ -426,7 +613,83 @@ class ChatView(QWidget):
         clean_response = re.sub(r'\[TRIGGER_PLOT:\w+\]', '', ai_response)
         clean_response = re.sub(r'\[TRIGGER_ANALYSIS:\w+\]', '', clean_response)
         
+        # Strip any code blocks or inline code the model may have generated
+        clean_response = re.sub(r"```[\s\S]*?```", "", clean_response)  # fenced code
+        clean_response = re.sub(r"`[^`]*`", "", clean_response)          # inline code
+        clean_response = re.sub(r"<pre[\s\S]*?>[\s\S]*?</pre>", "", clean_response, flags=re.IGNORECASE)
+        
         # Clean up any extra whitespace
         clean_response = re.sub(r'\s+', ' ', clean_response).strip()
         
         return clean_response
+    
+    def _display_dataset_overview(self, overview):
+        """Display dataset overview in the chat"""
+        if overview['status'] == 'success':
+            # Format the overview message
+            message = self._format_overview_message(overview)
+            self._append_message("System", message, Qt.AlignLeft)
+        else:
+            error_msg = f"Could not analyze dataset: {overview.get('message', 'Unknown error')}"
+            self._append_message("System", error_msg, Qt.AlignLeft)
+
+    def _format_overview_message(self, overview):
+        """Format the overview data into a readable message"""
+        msg = "📊 **Dataset Overview**\n\n"
+        
+        # Basic info
+        msg += f"• **Samples**: {overview['total_samples']}\n"
+        msg += f"• **Features**: {overview['total_features']}\n"
+        msg += f"• **Data Quality**: {overview.get('data_quality_summary', {}).get('overall_quality', 'Unknown')}\n\n"
+        
+        # Class distribution
+        if overview.get('classes'):
+            msg += "**Class Distribution:**\n"
+            for class_name, count in overview['classes'].items():
+                percentage = (count / overview['total_samples'] * 100) if overview['total_samples'] > 0 else 0
+                msg += f"• {class_name}: {count} samples ({percentage:.1f}%)\n"
+            msg += "\n"
+        
+        # Sample features
+        if overview.get('sample_feature_names'):
+            msg += "**Sample Features:**\n"
+            for feature in overview['sample_feature_names'][:5]:
+                msg += f"• {feature}\n"
+            if overview['total_feature_count'] > 5:
+                msg += f"• ... and {overview['total_feature_count'] - 5} more\n"
+        
+        msg += "\n💡 You can now ask me to analyze specific features or create visualizations!"
+        
+        return msg
+    def _on_response_ready(self, ai_response):
+        """Handle AI response ready signal"""
+        # Store response and clean it
+        self.pending_response = self._clean_response_from_triggers(ai_response)
+
+    def _on_plot_ready(self, plot_fig):
+        """Handle plot ready signal"""
+        self.pending_plot = plot_fig
+        
+        # Once we have both response and plot status, display everything
+        self._finalize_response()
+
+    def _on_error(self, error_message):
+        """Handle error signal"""
+        self._hide_loading_indicator()
+        self.is_loading = False
+        
+        error_msg = f"Error getting AI response: {error_message}"
+        self._append_message("System", error_msg, Qt.AlignLeft)
+
+    def _finalize_response(self):
+        """Display the final response with plot if available"""
+        # Hide loading
+        self._hide_loading_indicator()
+        
+        # Display response with plot
+        self._append_message("AI Assistant", self.pending_response, Qt.AlignLeft, self.pending_plot)
+        
+        # Reset state
+        self.is_loading = False
+        self.pending_response = ""
+        self.pending_plot = None
