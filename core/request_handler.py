@@ -107,6 +107,15 @@ class RequestHandler:
                 # Handle plot requests
                 plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
                 features = parsed_command.target_features if parsed_command.target_features else [target_column]
+                # Pre-validate vendor + measurement against dataset catalog
+                pre_validation = ml_interface.validate_vendor_measurement(parsed_command.original_request, features)
+                if pre_validation and pre_validation.get('status') == 'error':
+                    # Return a concise, user-friendly error
+                    return {
+                        'status': 'error',
+                        'message': pre_validation.get('message', 'Invalid plot request'),
+                        'data_source': pre_validation.get('data_source', 'dataset')
+                    }
                 
                 # First get the plot data
                 plot_data_result = ml_interface.get_plot_data(

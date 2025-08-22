@@ -79,6 +79,49 @@ class MLInterface:
             'violin': ['violin', 'violinplot']
         }
 
+    def validate_vendor_measurement(self, text: str, features: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        """Validate if vendor + measurement requested exists in dataset catalog.
+        Returns an error dict if invalid, otherwise None.
+        """
+        try:
+            text = text or ""
+            tokens: List[str] = []
+            if features:
+                tokens.extend([str(f) for f in features])
+            tokens.append(text)
+            combined = " ".join(tokens)
+            vendor_tokens = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", combined.upper())
+            # Infer measurements from wording
+            combined_low = combined.lower()
+            requested_measurements: List[str] = []
+            if any(k in combined_low for k in ['humidity', 'hum']):
+                requested_measurements.append('HUM')
+            if any(k in combined_low for k in ['temperature', 'temp']):
+                requested_measurements.append('TEMP')
+            if 'press' in combined_low:
+                requested_measurements.append('PRESS')
+            if any(k in combined_low for k in ['acc', 'accel']):
+                requested_measurements.append('ACC')
+            if 'gyro' in combined_low:
+                requested_measurements.append('GYRO')
+            if any(k in combined_low for k in ['mic', 'audio', 'sound']):
+                requested_measurements.append('MIC')
+            if 'mag' in combined_low:
+                requested_measurements.append('MAG')
+
+            if vendor_tokens and requested_measurements and self.vendor_measurements:
+                for vendor in set(vendor_tokens):
+                    caps = self.vendor_measurements.get(vendor, set())
+                    if not any(meas in caps for meas in requested_measurements):
+                        return {
+                            'status': 'error',
+                            'message': 'Requested vendor does not provide the specified feature(s)',
+                            'data_source': 'dataset'
+                        }
+            return None
+        except Exception:
+            return None
+
     def get_statistic(self, stat: str, column: str, filters: Optional[Dict] = None,
                    group_by: Optional[str] = None) -> Dict[str, Any]:
         """Get statistical measure for a specific column with optional filtering and grouping"""

@@ -600,7 +600,7 @@ class ResponseFormatter:
 
         return {
             'status': 'error',
-            'main_response': f"Sorry, I couldn't process that request: {error_message}",
+            'main_response': f"❌ {error_message}",
             'context': "Please check your request format and try again.",
             'suggestions': [
                 "Make sure you specify a sensor name",

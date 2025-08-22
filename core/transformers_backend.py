@@ -879,11 +879,32 @@ class Chatbot:
         """Clean and optimize response for concise, direct communication"""
         if not reply:
             return reply
+        
+        # IMMEDIATE RESPONSE WORD REMOVAL - Remove ANY occurrence of "RESPONSE" anywhere
+        # This is the first line of defense to prevent the word from appearing at all
+        reply = re.sub(r"(?i)\bRESPONSE\b", "", reply)
+        reply = re.sub(r"(?i)\bRESPONSES\b", "", reply)
             
-        # Remove any explicit RESPONSE/RESPONSES sections
+        # Remove any explicit RESPONSE/RESPONSES sections and instruction artifacts
         reply = re.split(r"(?i)\bRESPONSES?\s*:", reply)[0]
         # Also remove any in-line occurrence of RESPONSE: ... tails
-        reply = re.sub(r"(?im)^\s*RESPONSES?\s*:\s*.*$", "", reply)
+        reply = re.sub(r"(?im)^\s*RESPONSES?\s*:.*$", "", reply)
+        
+        # Remove instruction artifacts and prompt leakage
+        instruction_patterns = [
+            r"(?i)\bRESPONSE\s+FORMAT\s*:.*?(?=\n|$)",
+            r"(?i)\bRESPONSE\s+TIMING\s*:.*?(?=\n|$)",
+            r"(?i)\bINSTRUCTIONS?\s*:.*?(?=\n|$)",
+            r"(?i)\bGUIDELINES?\s*:.*?(?=\n|$)",
+            r"(?i)\bRULES?\s*:.*?(?=\n|$)",
+            r"(?i)\bPROMPT\s*:.*?(?=\n|$)",
+            r"(?i)\bSYSTEM\s*:.*?(?=\n|$)",
+            r"(?i)\bASSISTANT\s*:.*?(?=\n|$)",
+            r"(?i)\bUSER\s*:.*?(?=\n|$)"
+        ]
+        
+        for pattern in instruction_patterns:
+            reply = re.sub(pattern, "", reply, flags=re.MULTILINE | re.DOTALL)
 
         # Remove any code blocks or inline code to avoid showing code in chat
         # Triple backtick fenced blocks (any language)
@@ -930,6 +951,30 @@ class Chatbot:
         cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply)
         cleaned_reply = re.sub(r'\.\s*\.', '.', cleaned_reply)
         cleaned_reply = re.sub(r'\s*,\s*', ', ', cleaned_reply)
+        
+        # Final cleanup: remove any remaining instruction-like artifacts
+        # Look for patterns like "FORMAT:", "TIMING:", "INSTRUCTIONS:" etc.
+        remaining_instructions = re.findall(r'(?i)\b[A-Z]+\s*:\s*[^.!?]*[.!?]?', cleaned_reply)
+        for instruction in remaining_instructions:
+            # Only remove if it looks like an instruction (all caps word + colon)
+            if re.match(r'^[A-Z]+\s*:', instruction):
+                cleaned_reply = cleaned_reply.replace(instruction, '').strip()
+        
+        # Additional aggressive cleanup for any remaining instruction artifacts
+        # Remove any text that looks like it came from a system prompt or instruction set
+        instruction_artifacts = [
+            r'(?i)\bRESPONSE\s+FORMAT\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSE\s+TIMING\b.*?(?=\n|$)',
+            r'(?i)\bKEEP\s+RESPONSES?\s+CONCISE\b.*?(?=\n|$)',
+            r'(?i)\bAVOID\s+LONG\s+EXPLANATIONS\b.*?(?=\n|$)',
+            r'(?i)\bUSE\s+EMOJIS\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSES?\s+UNDER\s+\d+\s+SENTENCES\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSES?\s+TIMELY\s+AND\s+RELEVANT\b.*?(?=\n|$)',
+            r'(?i)\bIF\s+A\s+RESPONSE\s+TAKES\s+LONGER\b.*?(?=\n|$)'
+        ]
+        
+        for pattern in instruction_artifacts:
+            cleaned_reply = re.sub(pattern, '', cleaned_reply, flags=re.MULTILINE | re.DOTALL)
 
         # Normalize phrasing like "for OK class" -> "for OK"
         cleaned_reply = re.sub(r"(?i)\bfor\s+([A-Za-z0-9_]+)\s+class(es)?\b", r"for \1", cleaned_reply)
@@ -937,6 +982,37 @@ class Chatbot:
         # Ensure the response ends with proper punctuation
         if cleaned_reply and not cleaned_reply.endswith(('.', '!', '?')):
             cleaned_reply += '.'
+        
+        # Final safety check: remove any remaining lines that look like instructions
+        lines = cleaned_reply.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            # Skip lines that look like instruction artifacts
+            if (re.match(r'^[A-Z\s]+:', line) or 
+                re.search(r'\b(FORMAT|TIMING|INSTRUCTIONS|GUIDELINES|RULES|PROMPT|SYSTEM)\b', line, re.IGNORECASE)):
+                continue
+            if line:
+                cleaned_lines.append(line)
+        
+        cleaned_reply = '\n'.join(cleaned_lines).strip()
+        
+        # FINAL NUCLEAR OPTION: Remove ANY occurrence of the word "RESPONSE" anywhere in the text
+        # This prevents the AI from using "RESPONSE" in any context during chat
+        cleaned_reply = re.sub(r"(?i)\bRESPONSE\b", "", cleaned_reply)
+        cleaned_reply = re.sub(r"(?i)\bRESPONSES\b", "", cleaned_reply)
+        
+        # Clean up any double spaces that might result from word removal
+        cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply)
+        cleaned_reply = cleaned_reply.strip()
+        
+        # FINAL VERIFICATION: Double-check that no "RESPONSE" word exists anywhere
+        # This is the absolute last line of defense before returning to user
+        if re.search(r"(?i)\bRESPONSE\b", cleaned_reply):
+            # If somehow "RESPONSE" still exists, remove it completely
+            cleaned_reply = re.sub(r"(?i)\bRESPONSE\b", "", cleaned_reply)
+            cleaned_reply = re.sub(r"(?i)\bRESPONSES\b", "", cleaned_reply)
+            cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply).strip()
             
         return cleaned_reply.strip()
     

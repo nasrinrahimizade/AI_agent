@@ -341,6 +341,10 @@ class UnifiedParser:
            or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HEATMAP, [])):
             return CommandType.PLOT, "visual"
 
+        # Generic plot requests (no specific type mentioned)
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.PLOT, [])):
+            return CommandType.PLOT, "visual"
+
         # Comparison: keywords
         if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.COMPARISON, [])):
             return CommandType.COMPARISON, response_type
