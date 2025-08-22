@@ -742,10 +742,16 @@ class Chatbot:
         """Remove any trailing or embedded speaker-labeled segments like 'User:' or 'AI:'"""
         if not text:
             return text
-        # Keep only content before the first speaker label
-        cleaned = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", str(text))[0].strip()
-        # Remove any residual speaker prefixes inside the line
-        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", cleaned)
+        
+        # Remove any residual speaker prefixes inside the line and suffixes
+        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", str(text))
+        
+        # Remove standalone speaker words at the end (like "User." or "AI.")
+        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI|Assistant|Bot)\s*\.?\s*$", "", cleaned)
+        
+        # Keep only content before the first speaker label (as backup)
+        cleaned = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", cleaned)[0].strip()
+        
         return cleaned
 
     def _calculate_adaptive_tokens(self, user_input: str, analysis: Dict, base_tokens: int) -> int:
