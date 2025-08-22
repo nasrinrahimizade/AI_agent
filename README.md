@@ -135,10 +135,9 @@ cd AI-agent
 
 # Install dependencies
 pip install -r requirements.txt
-pip install -r ML/requirements.txt
 
 # Download AI model (if not included)
-# Place Llama-3.2-1B model in the Llama-3.2-1B/ directory
+Place Llama-3.2-1B model in the Llama-3.2-1B/ directory
 ```
 
 ### **2. Launch Application**
@@ -312,21 +311,10 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Export Formats**: Multiple output format support
 - **Batch Analysis**: Automated analysis workflows
 
-### **Development Setup**
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open Pull Request
-
 ### **Code Standards**
 - **Documentation**: Comprehensive docstrings and comments
 - **Performance**: Optimize for large datasets and real-time use
 - **Error Handling**: Comprehensive validation and graceful degradation
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 **Acknowledgments**
 
