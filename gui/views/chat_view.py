@@ -38,8 +38,25 @@ class AIWorkerThread(QThread):
         try:
             # Generate AI response
             ai_response = self.chatbot.generate(self.user_message)
-            self.response_ready.emit(ai_response)
             
+            # Check if this is a dataset-related request
+            is_dataset_request = self._is_dataset_related_request(self.user_message, ai_response)
+            
+            # If it's a dataset request but no data is loaded, show dataset warning
+            if is_dataset_request and not self.chat_view.dataloaded:
+                self.response_ready.emit("Please add the dataset first with the + button")
+                self.plot_ready.emit(None)
+                return
+
+            # If it's not a dataset request, just show the AI response (no plot)
+            if not is_dataset_request:
+                self.response_ready.emit(ai_response)
+                self.plot_ready.emit(None)
+                return  
+            
+            # If we reach here: it's a dataset request AND data is loaded
+            self.response_ready.emit(ai_response)
+
             # Check for plot triggers and generate plot if needed
             plot_fig = None
             
@@ -49,15 +66,48 @@ class AIWorkerThread(QThread):
             # If no trigger markers, check old plot triggers
             if not plot_fig:
                 plot_fig = self.chat_view._check_plot_triggers(ai_response, self.user_message)
-            
-            # Emit plot if generated
-            if plot_fig:
-                self.plot_ready.emit(plot_fig)
-            else:
+
+            if not self.chat_view.dataloaded:
+                print("should not show the plot")
                 self.plot_ready.emit(None)
+            else:
+                # Emit plot if generated
+                if plot_fig:
+                    self.plot_ready.emit(plot_fig)
+                else:
+                    self.plot_ready.emit(None)
                 
         except Exception as e:
             self.error_occurred.emit(str(e))
+    def _is_dataset_related_request(self, user_message, ai_response):
+        """Check if the request is related to dataset analysis"""
+        user_lower = user_message.lower()
+        response_lower = ai_response.lower()
+        
+        # Dataset-related keywords
+        dataset_keywords = [
+            'plot', 'chart', 'graph', 'visualization', 'analyze', 'data',
+            'temperature', 'humidity', 'pressure', 'accelerometer', 'sensor',
+            'show me', 'display', 'create', 'generate', 'correlation', 'histogram',
+            'scatter', 'time series', 'frequency', 'distribution', 'features'
+        ]
+        
+        # Check if user message contains dataset-related keywords
+        user_has_dataset_keywords = any(keyword in user_lower for keyword in dataset_keywords)
+        
+        # Check if AI response has trigger markers (indicates dataset operation)
+        has_trigger_markers = (
+            '[TRIGGER_PLOT:' in ai_response or 
+            '[TRIGGER_ANALYSIS:' in ai_response
+        )
+        
+        # Check if it would trigger plot generation
+        would_trigger_plot = (
+            self.chat_view._check_trigger_markers(ai_response) is not None or
+            self.chat_view._check_plot_triggers(ai_response, user_message) is not None
+        )
+        
+        return user_has_dataset_keywords or has_trigger_markers or would_trigger_plot
             
 class ChatView(QWidget):
     def __init__(self, parent=None, plot_view=None, open_dataset_callback=None):
@@ -133,6 +183,7 @@ class ChatView(QWidget):
             'create a comparison between ok and ko conditions',
             'generate a feature relationship matrix',
         ])
+        self.dataloaded = False
 
     def _show_loading_indicator(self):
         """Show loading indicator"""
@@ -202,6 +253,9 @@ class ChatView(QWidget):
         
         # Display the overview in chat
         self._display_dataset_overview(overview)
+        
+        print("dataset is set")
+        self.dataloaded = True
 
     def setup_ui(self):
         """Setup the chat interface UI"""
