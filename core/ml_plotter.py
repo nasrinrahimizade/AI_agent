@@ -1446,22 +1446,22 @@ class PlottingEngine:
                 print(f"Using base_path from ml_interface: {ml_interface.base_path}")
                 return ml_interface.base_path
         
-        # # Fallback: try to detect from project structure
-        # try:
-        #     current_dir = os.path.dirname(os.path.abspath(__file__))
-        #     project_root = os.path.dirname(current_dir)
-        #     candidates = [
-        #         os.path.join(project_root, 'dataset', 'vel-fissa')
-        #     ]
-        #     for path in candidates:
-        #         if os.path.isdir(path):
-        #             print(f"Using fallback dataset path: {path}")
-        #             return path
-        # except Exception:
-        #     pass
+        # Fallback: try to detect from project structure
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+            candidates = [
+                os.path.join(project_root, 'dataset', 'vel-fissa')
+            ]
+            for path in candidates:
+                if os.path.isdir(path):
+                    print(f"Using fallback dataset path: {path}")
+                    return path
+        except Exception:
+            pass
         
-        # print("No dataset root found")
-        # return ''
+        print("No dataset root found")
+        return ''
 
     def _detect_labels_from_request(self, request: str) -> list:
         """Extract label filters (e.g., OK, KO variants) from the natural language request."""
