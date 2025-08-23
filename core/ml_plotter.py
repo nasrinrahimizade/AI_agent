@@ -18,6 +18,11 @@ class PlottingEngine:
     
     def __init__(self, feature_matrix_path: str = None):
         """Initialize with your feature matrix data"""
+
+
+        self.base_path = None
+
+
         # Fix path resolution - use absolute path from project root
         if feature_matrix_path is None:
             import os
@@ -549,6 +554,7 @@ class PlottingEngine:
         """Get sensor file configuration - make this configurable later"""
         # Detect dataset root dynamically
         base_path = self._detect_dataset_root()
+        print("/n base_path", base_path)
 
         # Detect class folders and condition folders dynamically if possible
         class_folders: List[str] = ['OK', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
@@ -1433,18 +1439,29 @@ class PlottingEngine:
 
     def _detect_dataset_root(self) -> str:
         """Detect dataset root directory dynamically."""
-        try:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(current_dir)
-            candidates = [
-                os.path.join(project_root, 'dataset', 'vel-fissa')
-            ]
-            for path in candidates:
-                if os.path.isdir(path):
-                    return path
-        except Exception:
-            pass
-        return ''
+        # First priority: use the base_path from ml_interface if available
+        from core.ml_interface import ml_interface
+        if hasattr(ml_interface, 'base_path') and ml_interface.base_path:
+            if os.path.isdir(ml_interface.base_path):
+                print(f"Using base_path from ml_interface: {ml_interface.base_path}")
+                return ml_interface.base_path
+        
+        # # Fallback: try to detect from project structure
+        # try:
+        #     current_dir = os.path.dirname(os.path.abspath(__file__))
+        #     project_root = os.path.dirname(current_dir)
+        #     candidates = [
+        #         os.path.join(project_root, 'dataset', 'vel-fissa')
+        #     ]
+        #     for path in candidates:
+        #         if os.path.isdir(path):
+        #             print(f"Using fallback dataset path: {path}")
+        #             return path
+        # except Exception:
+        #     pass
+        
+        # print("No dataset root found")
+        # return ''
 
     def _detect_labels_from_request(self, request: str) -> list:
         """Extract label filters (e.g., OK, KO variants) from the natural language request."""
@@ -1492,7 +1509,10 @@ class PlottingEngine:
     def _plot_time_series_from_dataset(self, request: str):
         """Create a time plot directly from dataset CSVs (dynamic paths). Return Figure or None."""
         dataset_root = self._detect_dataset_root()
+        print("\n dataset_root", dataset_root)
+
         if not dataset_root:
+            print("dataset root not loaded")
             return None
 
         labels = self._detect_labels_from_request(request)

@@ -29,7 +29,8 @@ class MLInterface:
         self.feature_matrix_path = feature_matrix_path
         self.ml_agent = None
         self.mock_data = None
-        
+        self.base_path = None
+
         # Only try to load data if path is provided and exists
         if feature_matrix_path and os.path.exists(feature_matrix_path):
             try:
@@ -80,11 +81,12 @@ class MLInterface:
         
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
 
-    def update_data(self, feature_matrix_path: str, dataframe: pd.DataFrame = None):
+    def update_data(self, feature_matrix_path: str, dataframe: pd.DataFrame = None, base_path: str = None):
         """Update the data path and reload data"""
         print("updating data for ml interface")
         self.feature_matrix_path = feature_matrix_path
-        
+        self.base_path = base_path
+
         if dataframe is not None:
             self.mock_data = dataframe
         else:
@@ -96,6 +98,7 @@ class MLInterface:
         
         self._initialize_available_sensors()
         logging.info(f"Data updated successfully from {feature_matrix_path}")
+        logging.info(f"Base path set to: {base_path}")
         return True
     
     def validate_vendor_measurement(self, text: str, features: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:

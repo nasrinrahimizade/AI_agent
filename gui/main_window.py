@@ -301,7 +301,7 @@ class MainWindow(QMainWindow):
                     feature_df = load_dataset(feature_matrix_path)
                 
                 # UPDATE: Use the new update_data method
-                success = ml_interface.update_data(feature_matrix_path, feature_df)
+                success = ml_interface.update_data(feature_matrix_path, feature_df, folder_path)
                 if not success:
                     self.statusBar().showMessage("Failed to update ML interface with new data.")
                     return
