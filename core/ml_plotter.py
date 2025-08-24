@@ -8,6 +8,7 @@ from scipy import stats
 from scipy.fft import fft, fftfreq
 from typing import Dict, List, Optional
 import warnings
+import re
 warnings.filterwarnings('ignore')
 
 class PlottingEngine:
@@ -1511,6 +1512,12 @@ class PlottingEngine:
         if not sensor_kws:
             return None
 
+        # Parse the vendor token from the request
+        vendor = None
+        vendor_match = re.search(r'\b(HTS221|STTS751|LPS22HH|IIS3DWB|ISM330DHCX|IIS2MDC|IMP23ABSU|IMP34DT05)\b', request, flags=re.I)
+        if vendor_match:
+            vendor = vendor_match.group(1).lower()
+
         matched_files = []
         try:
             for label in label_dirs:
@@ -1519,7 +1526,8 @@ class PlottingEngine:
                     continue
                 for csv_path in glob.iglob(os.path.join(label_path, '**', '*.csv'), recursive=True):
                     name = os.path.basename(csv_path).lower()
-                    if any(kw in name for kw in sensor_kws):
+                    # Only add files that match sensor keywords AND respect vendor if specified
+                    if any(kw in name for kw in sensor_kws) and (vendor is None or vendor in name):
                         matched_files.append(csv_path)
         except Exception:
             return None
@@ -1537,8 +1545,16 @@ class PlottingEngine:
                 class_label = 'Unknown'
             class_to_files.setdefault(class_label, []).append(path)
 
-        # Prefer specific temperature files for comparability if temperature requested
-        preferred_temp_files = ['STTS751_TEMP.csv', 'LPS22HH_TEMP.csv', 'HTS221_TEMP.csv'] if 'temp' in sensor_kws else []
+        # Make preference list dynamic based on requested vendor
+        if 'temp' in sensor_kws:
+            if vendor:
+                # If specific vendor requested, prefer that vendor's temperature file
+                preferred_temp_files = [f'{vendor.upper()}_TEMP.csv']
+            else:
+                # If no vendor specified, use default preference order
+                preferred_temp_files = ['HTS221_TEMP.csv', 'LPS22HH_TEMP.csv', 'STTS751_TEMP.csv']
+        else:
+            preferred_temp_files = []
 
         # Build a balanced selection across classes
         selected_files = []

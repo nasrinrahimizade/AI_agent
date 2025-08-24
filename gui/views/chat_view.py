@@ -344,29 +344,6 @@ class ChatView(QWidget):
         self.ai_worker.set_request(message, self)
         self.ai_worker.start()
 
-    # def _ai_reply(self, user_message: str):
-    #     """Get AI response and handle plot triggers"""
-    #     try:
-    #         # Get AI response using the correct method
-    #         ai_response = self.chatbot.generate(user_message)
-            
-    #         # Check for new trigger markers first (e.g., [TRIGGER_PLOT:histogram])
-    #         plot_fig = self._check_trigger_markers(ai_response)
-            
-    #         # If no trigger markers found, check old plot triggers for backward compatibility
-    #         if not plot_fig:
-    #             plot_fig = self._check_plot_triggers(ai_response, user_message)
-            
-    #         # Clean the response by removing trigger markers before displaying
-    #         clean_response = self._clean_response_from_triggers(ai_response)
-            
-    #         # Display AI response with plot if available
-    #         self._append_message("AI Assistant", clean_response, Qt.AlignLeft, plot_fig)
-            
-    #     except Exception as e:
-    #         error_msg = f"Error getting AI response: {str(e)}"
-    #         self._append_message("System", error_msg, Qt.AlignLeft)
-
     def _check_plot_triggers(self, ai_response: str, user_message: str):
         """Check AI response for keywords that should trigger plot display"""
         response_lower = ai_response.lower()
