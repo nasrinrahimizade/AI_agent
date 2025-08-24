@@ -101,7 +101,6 @@ class HelpView(QWidget):
                 <h3>Feature Importance</h3>
                 <ul>
                     <li><b>"What are the most discriminative features?"</b> - Find best classification features</li>
-                    <li><b>"Show me the top 5 important features"</b> - Ranked feature importance</li>
                     <li><b>"Which features separate OK from KO samples best?"</b> - Feature discrimination</li>
                 </ul>
 

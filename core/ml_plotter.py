@@ -8,6 +8,7 @@ from scipy import stats
 from scipy.fft import fft, fftfreq
 from typing import Dict, List, Optional
 import warnings
+import re
 warnings.filterwarnings('ignore')
 
 class PlottingEngine:
@@ -1056,7 +1057,7 @@ class PlottingEngine:
         
         # Add available sensors information if any
         if available_sensors:
-            ax.text(0.5, 0.52, f'✅ Available sensors for this type:', 
+            ax.text(0.5, 0.52, f' Available sensors for this type:', 
                     fontsize=16, fontweight='bold', ha='center', va='center',
                     color='#28a745', transform=ax.transAxes)
             
@@ -1094,7 +1095,7 @@ class PlottingEngine:
         # Add comprehensive sensor summary in a organized table format
         all_sensors = self.get_all_available_sensors_summary()
         if all_sensors:
-            ax.text(0.5, 0.35, '📊 Complete Sensor Inventory', 
+            ax.text(0.5, 0.35, 'Complete Sensor Inventory', 
                     fontsize=18, fontweight='bold', ha='center', va='center',
                     color='#2c3e50', transform=ax.transAxes)
             
@@ -1102,7 +1103,7 @@ class PlottingEngine:
             y_pos = 0.28
             for sensor_type, sensors in all_sensors.items():
                 # Sensor type header
-                ax.text(0.15, y_pos, f'🔍 {sensor_type.title()}', 
+                ax.text(0.15, y_pos, f'{sensor_type.title()}', 
                         fontsize=16, fontweight='bold', ha='left', va='center',
                         color='#3498db', transform=ax.transAxes)
                 
@@ -1223,11 +1224,6 @@ class PlottingEngine:
             ax.axhline(y=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
             ax.axvline(x=i/100, color='#6c757d', alpha=alpha, linewidth=0.5)
         
-        # Add decorative header
-        ax.text(0.5, 0.97, '🔍', 
-                fontsize=36, ha='center', va='center',
-                color='#3498db', transform=ax.transAxes)
-        
         # Add main title
         ax.text(0.5, 0.92, 'Available Sensors in Dataset', 
                 fontsize=32, fontweight='bold', ha='center', va='center',
@@ -1243,7 +1239,7 @@ class PlottingEngine:
         
         if not all_sensors:
             # No sensors found message
-            ax.text(0.5, 0.5, '❌ No sensors found in dataset', 
+            ax.text(0.5, 0.5, ' No sensors found in dataset', 
                     fontsize=20, ha='center', va='center',
                     color='#dc3545', transform=ax.transAxes,
                     bbox=dict(boxstyle="round,pad=0.4", facecolor='#f8d7da', 
@@ -1253,7 +1249,7 @@ class PlottingEngine:
             y_pos = 0.78
             
             # Add section header
-            ax.text(0.5, y_pos, '📊 Sensor Categories', 
+            ax.text(0.5, y_pos, ' Sensor Categories', 
                     fontsize=20, fontweight='bold', ha='center', va='center',
                     color='#495057', transform=ax.transAxes)
             y_pos -= 0.05
@@ -1323,19 +1319,12 @@ class PlottingEngine:
             
             # Add summary statistics
             total_sensors = sum(len(sensors) for sensors in all_sensors.values())
-            ax.text(0.5, y_pos - 0.05, f'📈 Summary: {len(all_sensors)} sensor types, {total_sensors} total sensors', 
+            ax.text(0.5, y_pos - 0.05, f' Summary: {len(all_sensors)} sensor types, {total_sensors} total sensors', 
                     fontsize=16, fontweight='bold', ha='center', va='center',
                     color='#27ae60', transform=ax.transAxes,
                     bbox=dict(boxstyle="round,pad=0.3", facecolor='#d5f4e6', 
                              edgecolor='#27ae60', alpha=0.9))
-        
-        # Add footer with usage instructions
-        ax.text(0.5, 0.04, '💡 Copy and paste these sensor names in your plot requests', 
-                fontsize=14, ha='center', va='center',
-                color='#6c757d', transform=ax.transAxes, style='italic',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor='#fff3cd', 
-                         edgecolor='#ffeaa7', alpha=0.9))
-        
+
         # Remove axes
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
@@ -1350,7 +1339,7 @@ class PlottingEngine:
             error_msg = parsed_result['validation_error']
             available_sensors = parsed_result.get('available_sensors', [])
             
-            response = f"❌ **Request Cannot Be Completed**\n\n"
+            response = f" **Request Cannot Be Completed**\n\n"
             response += f"**Your request:** {request}\n\n"
             response += f"**Why it failed:** {error_msg}\n\n"
             
@@ -1360,12 +1349,12 @@ class PlottingEngine:
             # Get all available sensors for comprehensive guidance
             all_sensors = self.get_all_available_sensors_summary()
             if all_sensors:
-                response += "**📊 Complete Sensor Inventory:**\n"
+                response += "** Complete Sensor Inventory:**\n"
                 for sensor_type, sensors in all_sensors.items():
                     response += f"• **{sensor_type.title()}:** {', '.join(sensors)}\n"
                 response += "\n"
             
-            response += "**💡 What to do next:**\n"
+            response += "** What to do next:**\n"
             response += "1. Use one of the available sensor names listed above\n"
             response += "2. Make sure the sensor type matches your request (e.g., humidity, temperature)\n"
             response += "3. Try a simpler request like 'Show me what sensors are available'\n\n"
@@ -1381,25 +1370,25 @@ class PlottingEngine:
             return response
         
         elif not parsed_result.get('features'):
-            response = f"❌ **Request Cannot Be Completed**\n\n"
+            response = f" **Request Cannot Be Completed**\n\n"
             response += f"**Your request:** {request}\n\n"
             response += "**Why it failed:** No features found for the requested sensor type.\n\n"
             
             # Get all available sensors for guidance
             all_sensors = self.get_all_available_sensors_summary()
             if all_sensors:
-                response += "**📊 Available Sensors:**\n"
+                response += "** Available Sensors:**\n"
                 for sensor_type, sensors in all_sensors.items():
                     response += f"• **{sensor_type.title()}:** {', '.join(sensors)}\n"
                 response += "\n"
             
-            response += "**💡 What to do next:**\n"
+            response += "** What to do next:**\n"
             response += "• Use specific sensor names from the list above\n"
             response += "• Try 'Show me what sensors are available' to see everything\n"
             
             return response
         
-        return "✅ Request processed successfully!"
+        return " Request processed successfully!"
 
     def will_request_fail(self, request: str) -> tuple[bool, str, dict]:
         """
@@ -1429,7 +1418,7 @@ class PlottingEngine:
         plot_type = parsed.get('plot_type', 'unknown')
         features_count = len(parsed.get('features', []))
         
-        summary = f"✅ **Request Analysis**\n\n"
+        summary = f" **Request Analysis**\n\n"
         summary += f"**Your request:** {request}\n\n"
         summary += f"**What will be created:** {plot_type.replace('_', ' ').title()} plot\n"
         summary += f"**Sensor type:** {sensor_type.title()}\n"
@@ -1523,6 +1512,12 @@ class PlottingEngine:
         if not sensor_kws:
             return None
 
+        # Parse the vendor token from the request
+        vendor = None
+        vendor_match = re.search(r'\b(HTS221|STTS751|LPS22HH|IIS3DWB|ISM330DHCX|IIS2MDC|IMP23ABSU|IMP34DT05)\b', request, flags=re.I)
+        if vendor_match:
+            vendor = vendor_match.group(1).lower()
+
         matched_files = []
         try:
             for label in label_dirs:
@@ -1531,7 +1526,8 @@ class PlottingEngine:
                     continue
                 for csv_path in glob.iglob(os.path.join(label_path, '**', '*.csv'), recursive=True):
                     name = os.path.basename(csv_path).lower()
-                    if any(kw in name for kw in sensor_kws):
+                    # Only add files that match sensor keywords AND respect vendor if specified
+                    if any(kw in name for kw in sensor_kws) and (vendor is None or vendor in name):
                         matched_files.append(csv_path)
         except Exception:
             return None
@@ -1549,8 +1545,16 @@ class PlottingEngine:
                 class_label = 'Unknown'
             class_to_files.setdefault(class_label, []).append(path)
 
-        # Prefer specific temperature files for comparability if temperature requested
-        preferred_temp_files = ['STTS751_TEMP.csv', 'LPS22HH_TEMP.csv', 'HTS221_TEMP.csv'] if 'temp' in sensor_kws else []
+        # Make preference list dynamic based on requested vendor
+        if 'temp' in sensor_kws:
+            if vendor:
+                # If specific vendor requested, prefer that vendor's temperature file
+                preferred_temp_files = [f'{vendor.upper()}_TEMP.csv']
+            else:
+                # If no vendor specified, use default preference order
+                preferred_temp_files = ['HTS221_TEMP.csv', 'LPS22HH_TEMP.csv', 'STTS751_TEMP.csv']
+        else:
+            preferred_temp_files = []
 
         # Build a balanced selection across classes
         selected_files = []

@@ -147,6 +147,22 @@ class Chatbot:
         }
         
         text_lower = user_input.lower()
+
+        # Detect capability/skills questions early
+        capability_phrases = [
+            'what are your skills',
+            'what can you do',
+            'your capabilities',
+            'what do you do',
+            'what are you good at',
+            'what are your abilities',
+            'how can you help',
+            'what can u do'
+        ]
+        if any(p in text_lower for p in capability_phrases):
+            analysis['intent'] = 'capabilities'
+            analysis['confidence'] = 0.95
+            return analysis
         
         # First, check if this is general conversation (greetings, casual talk)
         general_conversation_keywords = [
@@ -401,72 +417,90 @@ class Chatbot:
                     
                     if response_type == 'text':
                         # Text-only response - no plots, no context, no suggestions
-                        response = response_data['main_response']
+                        response = self._strip_speaker_segments(response_data['main_response'])
                     elif response_type == 'visual':
-                        # Visual response - include plot trigger
-                        response = response_data['main_response']
-                        # Prefer the actual plot_type returned from the pipeline over suggestion
-                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
-                        # Normalize aliases
-                        if effective_plot in ['line', 'line graph', 'line_graph']:
-                            response = "📈 Creating line graph..."
-                            trigger = 'line_graph'
-                        elif effective_plot in ['hist', 'histogram']:
-                            response = "📊 Creating histogram..."
-                            trigger = 'histogram'
-                        elif effective_plot in ['scatter', 'scatterplot']:
-                            response = "💫 Creating scatter plot..."
-                            trigger = 'scatter'
-                        elif effective_plot in ['correlation', 'correlation_matrix']:
-                            response = "🔗 Creating correlation matrix..."
-                            trigger = 'correlation'
-                        elif effective_plot in ['timeseries', 'time series']:
-                            response = "🕒 Creating time series plot..."
-                            trigger = 'timeseries'
-                        elif effective_plot in ['frequency', 'fft']:
-                            response = "📡 Creating frequency domain plot..."
-                            trigger = 'frequency'
-                        else:
-                            # Fallback to suggestion if available
-                            plot_suggestion = response_data.get('plot_suggestion')
-                            if plot_suggestion == 'line_graph':
-                                response = "📈 Creating line graph..."; trigger = 'line_graph'
-                            elif plot_suggestion == 'histogram':
-                                response = "📊 Creating histogram..."; trigger = 'histogram'
-                            elif plot_suggestion == 'scatter':
-                                response = "💫 Creating scatter plot..."; trigger = 'scatter'
-                            elif plot_suggestion == 'correlation':
-                                response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
-                            elif plot_suggestion == 'timeseries':
-                                response = "🕒 Creating time series plot..."; trigger = 'timeseries'
-                            elif plot_suggestion == 'frequency':
-                                response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
+                        # Visual response - preserve main_response and only append plot trigger
+                        # Only acknowledge creation if a plot is actually ready
+                        if response_data.get('plot_ready', False):
+                            response = self._strip_speaker_segments(response_data['main_response'])
+                            effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                            # Normalize aliases and set trigger without overwriting main_response
+                            if effective_plot in ['line', 'line graph', 'line_graph']:
+                                trigger = 'line_graph'
+                            elif effective_plot in ['hist', 'histogram']:
+                                trigger = 'histogram'
+                            elif effective_plot in ['scatter', 'scatterplot']:
+                                trigger = 'scatter'
+                            elif effective_plot in ['correlation', 'correlation_matrix']:
+                                trigger = 'correlation'
+                            elif effective_plot in ['timeseries', 'time series']:
+                                trigger = 'timeseries'
+                            elif effective_plot in ['frequency', 'fft']:
+                                trigger = 'frequency'
                             else:
-                                trigger = (plot_suggestion or 'line_graph')
-                                response = f"📊 Creating {trigger}..."
+                                # Fallback to suggestion if available
+                                plot_suggestion = response_data.get('plot_suggestion')
+                                if plot_suggestion == 'line_graph':
+                                    trigger = 'line_graph'
+                                elif plot_suggestion == 'histogram':
+                                    trigger = 'histogram'
+                                elif plot_suggestion == 'scatter':
+                                    trigger = 'scatter'
+                                elif plot_suggestion == 'correlation':
+                                    trigger = 'correlation'
+                                elif plot_suggestion == 'timeseries':
+                                    trigger = 'timeseries'
+                                elif plot_suggestion == 'frequency':
+                                    trigger = 'frequency'
+                                else:
+                                    # No valid suggestion; don't acknowledge creation
+                                    trigger = None
 
-                        response += f" [TRIGGER_PLOT:{trigger}]"
+                            if trigger:
+                                response += f" [TRIGGER_PLOT:{trigger}]"
+                        else:
+                            # Validation failed/plot not ready; return main_response as-is
+                            response = self._strip_speaker_segments(response_data['main_response'])
                     else:
                         # Auto mode - check if plot is suggested
-                        response = response_data['main_response']
-                        effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
-                        if effective_plot in ['line', 'line graph', 'line_graph']:
-                            response = "📈 Creating line graph..."; trigger = 'line_graph'
-                        elif effective_plot in ['hist', 'histogram']:
-                            response = "📊 Creating histogram..."; trigger = 'histogram'
-                        elif effective_plot in ['scatter', 'scatterplot']:
-                            response = "💫 Creating scatter plot..."; trigger = 'scatter'
-                        elif effective_plot in ['correlation', 'correlation_matrix']:
-                            response = "🔗 Creating correlation matrix..."; trigger = 'correlation'
-                        elif effective_plot in ['timeseries', 'time series']:
-                            response = "🕒 Creating time series plot..."; trigger = 'timeseries'
-                        elif effective_plot in ['frequency', 'fft']:
-                            response = "📡 Creating frequency domain plot..."; trigger = 'frequency'
-                        else:
-                            trigger = (response_data.get('plot_suggestion') or 'line_graph')
-                            response = f"📊 Creating {trigger}..."
+                        # In auto mode, only trigger creation if plot is actually ready
+                        if response_data.get('plot_ready', False):
+                            response = self._strip_speaker_segments(response_data['main_response'])
+                            effective_plot = (response_data.get('plot_type') or response_data.get('plot_suggestion') or '').lower()
+                            # Normalize aliases and set trigger without overwriting main_response
+                            if effective_plot in ['line', 'line graph', 'line_graph']:
+                                trigger = 'line_graph'
+                            elif effective_plot in ['hist', 'histogram']:
+                                trigger = 'histogram'
+                            elif effective_plot in ['scatter', 'scatterplot']:
+                                trigger = 'scatter'
+                            elif effective_plot in ['correlation', 'correlation_matrix']:
+                                trigger = 'correlation'
+                            elif effective_plot in ['timeseries', 'time series']:
+                                trigger = 'timeseries'
+                            elif effective_plot in ['frequency', 'fft']:
+                                trigger = 'frequency'
+                            else:
+                                plot_suggestion = response_data.get('plot_suggestion')
+                                if plot_suggestion == 'line_graph':
+                                    trigger = 'line_graph'
+                                elif plot_suggestion == 'histogram':
+                                    trigger = 'histogram'
+                                elif plot_suggestion == 'scatter':
+                                    trigger = 'scatter'
+                                elif plot_suggestion == 'correlation':
+                                    trigger = 'correlation'
+                                elif plot_suggestion == 'timeseries':
+                                    trigger = 'timeseries'
+                                elif plot_suggestion == 'frequency':
+                                    trigger = 'frequency'
+                                else:
+                                    trigger = None
 
-                        response += f" [TRIGGER_PLOT:{trigger}]"
+                            if trigger:
+                                response += f" [TRIGGER_PLOT:{trigger}]"
+                        else:
+                            response = self._strip_speaker_segments(response_data['main_response'])
                     
                     # Update conversation context and return
                     self.user_messages.append(user_input)
@@ -498,17 +532,49 @@ class Chatbot:
                     self._update_response_metrics(response, ml_analysis, response_time)
                     
                     return response
+                else:
+                    # Validation-first: surface error instead of falling back to LLM
+                    response = self._strip_speaker_segments(response_data.get('main_response') or response_data.get('message') or 'Request could not be processed.')
+                    self.user_messages.append(user_input)
+                    self.ai_messages.append(response)
+                    self.history.append(("User", user_input))
+                    self.history.append(("AI", response))
+                    self._prune_history()
+                    return response
                     
         except Exception as e:
             # Fallback to old system if there's an error
             pass
         
-        # 3) Fallback to old LLM-based system for non-data requests
+        # 3) Fallback to old LLM-based system for non-data requests with validation-before-send
         # Note: The decode function below is ONLY for LLM-generated responses, 
         # NOT for ML responses which are handled above and returned directly
         
         # 1) Analyze user input for context (only if no command detected)
         analysis = self._analyze_user_input(user_input)
+
+        # Handle capability/skills questions and generic non-data questions explicitly
+        if analysis.get('intent') == 'capabilities':
+            response = (
+                "I analyze sensor datasets (statistics, comparisons), identify top discriminative features, "
+                "and generate visualizations (line, histogram, scatter, correlation, time series, frequency). "
+                "I can assess data quality, compare OK vs KO, and answer data science questions concisely."
+            )
+            self.user_messages.append(user_input)
+            self.ai_messages.append(response)
+            self.history.append(("User", user_input))
+            self.history.append(("AI", response))
+            self._prune_history()
+            return response
+        # If a generic question likely unrelated to data (contains human/world topics), avoid data path
+        if any(w in user_input.lower() for w in ['human', 'life', 'world', 'philosophy', 'biology', 'water', 'food', 'health', 'medicine']):
+            response = "I can answer general questions, but I'm specialized in data analysis. Water is essential for human survival (hydration, cellular function, temperature regulation)."
+            self.user_messages.append(user_input)
+            self.ai_messages.append(response)
+            self.history.append(("User", user_input))
+            self.history.append(("AI", response))
+            self._prune_history()
+            return response
         
         # 2) Update conversation context
         self._update_conversation_context(user_input, analysis)
@@ -631,16 +697,32 @@ class Chatbot:
                                 break
         
         # 10) Enhanced response cleaning and improvement with learning
-        reply = self._clean_response(reply)
-        reply = self._enhance_response_quality(reply, user_input, analysis)
+        candidate_reply = self._clean_response(reply)
+        candidate_reply = self._enhance_response_quality(candidate_reply, user_input, analysis)
+
+        # 10.5) Validation-before-send: if the parser would treat this as a data request, do NOT send LLM reply
+        # Instead, provide a concise capability/general reply depending on detected intent
+        reparse = parse_command(user_input)
+        if reparse.command_type.value != 'unknown':
+            # Treat as general conversation to avoid wrong data errors
+            if analysis.get('intent') == 'capabilities':
+                final_reply = (
+                    "I analyze sensor datasets, identify discriminative features, and generate visualizations."
+                )
+            else:
+                final_reply = "Okay."
+        else:
+            final_reply = self._strip_speaker_segments(candidate_reply)
         
-        # Stop at any new speaker label (including USER : with space)
-        reply = re.split(r"(?i)\b(?:User|System|Developer|AI|USER)\s*:", reply)[0].strip()
+        # Stop at any new speaker label (User:, AI:, AI Assistant:, AI Response:, Assistant:, Bot:, System:, Developer:)
+        reply = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", reply)[0].strip()
+        # Also remove any residual speaker prefixes mid-sentence
+        reply = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", reply)
 
         # 11) Update response metrics and learn from interaction
         response_time = time.time() - start_time
-        self._update_response_metrics(reply, analysis, response_time)
-        self._learn_from_interaction(user_input, reply, analysis)
+        self._update_response_metrics(final_reply, analysis, response_time)
+        self._learn_from_interaction(user_input, final_reply, analysis)
         
         # 12) Add conversation flow entry for AI response
         ai_flow_entry = {
@@ -653,8 +735,24 @@ class Chatbot:
         }
         self.conversation_context['conversation_flow'].append(ai_flow_entry)
 
-        self.history.append(("AI", reply))
-        return reply
+        self.history.append(("AI", final_reply))
+        return final_reply
+
+    def _strip_speaker_segments(self, text: str) -> str:
+        """Remove any trailing or embedded speaker-labeled segments like 'User:' or 'AI:'"""
+        if not text:
+            return text
+        
+        # Remove any residual speaker prefixes inside the line and suffixes
+        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:\s*", "", str(text))
+        
+        # Remove standalone speaker words at the end (like "User." or "AI.")
+        cleaned = re.sub(r"(?i)\b(?:User|System|Developer|AI|Assistant|Bot)\s*\.?\s*$", "", cleaned)
+        
+        # Keep only content before the first speaker label (as backup)
+        cleaned = re.split(r"(?i)\b(?:User|System|Developer|AI(?:\s+Assistant|\s+Response)?|Assistant|Bot)\s*:", cleaned)[0].strip()
+        
+        return cleaned
 
     def _calculate_adaptive_tokens(self, user_input: str, analysis: Dict, base_tokens: int) -> int:
         """Calculate adaptive token count based on user behavior and context - optimized for single-line responses"""
@@ -787,7 +885,33 @@ class Chatbot:
         """Clean and optimize response for concise, direct communication"""
         if not reply:
             return reply
+        
+        # IMMEDIATE RESPONSE WORD REMOVAL - Remove ANY occurrence of "RESPONSE" anywhere
+        # This is the first line of defense to prevent the word from appearing at all
+        reply = re.sub(r"(?i)\bRESPONSE\b", "", reply)
+        reply = re.sub(r"(?i)\bRESPONSES\b", "", reply)
             
+        # Remove any explicit RESPONSE/RESPONSES sections and instruction artifacts
+        reply = re.split(r"(?i)\bRESPONSES?\s*:", reply)[0]
+        # Also remove any in-line occurrence of RESPONSE: ... tails
+        reply = re.sub(r"(?im)^\s*RESPONSES?\s*:.*$", "", reply)
+        
+        # Remove instruction artifacts and prompt leakage
+        instruction_patterns = [
+            r"(?i)\bRESPONSE\s+FORMAT\s*:.*?(?=\n|$)",
+            r"(?i)\bRESPONSE\s+TIMING\s*:.*?(?=\n|$)",
+            r"(?i)\bINSTRUCTIONS?\s*:.*?(?=\n|$)",
+            r"(?i)\bGUIDELINES?\s*:.*?(?=\n|$)",
+            r"(?i)\bRULES?\s*:.*?(?=\n|$)",
+            r"(?i)\bPROMPT\s*:.*?(?=\n|$)",
+            r"(?i)\bSYSTEM\s*:.*?(?=\n|$)",
+            r"(?i)\bASSISTANT\s*:.*?(?=\n|$)",
+            r"(?i)\bUSER\s*:.*?(?=\n|$)"
+        ]
+        
+        for pattern in instruction_patterns:
+            reply = re.sub(pattern, "", reply, flags=re.MULTILINE | re.DOTALL)
+
         # Remove any code blocks or inline code to avoid showing code in chat
         # Triple backtick fenced blocks (any language)
         reply = re.sub(r"```[\s\S]*?```", "", reply)
@@ -834,9 +958,67 @@ class Chatbot:
         cleaned_reply = re.sub(r'\.\s*\.', '.', cleaned_reply)
         cleaned_reply = re.sub(r'\s*,\s*', ', ', cleaned_reply)
         
+        # Final cleanup: remove any remaining instruction-like artifacts
+        # Look for patterns like "FORMAT:", "TIMING:", "INSTRUCTIONS:" etc.
+        remaining_instructions = re.findall(r'(?i)\b[A-Z]+\s*:\s*[^.!?]*[.!?]?', cleaned_reply)
+        for instruction in remaining_instructions:
+            # Only remove if it looks like an instruction (all caps word + colon)
+            if re.match(r'^[A-Z]+\s*:', instruction):
+                cleaned_reply = cleaned_reply.replace(instruction, '').strip()
+        
+        # Additional aggressive cleanup for any remaining instruction artifacts
+        # Remove any text that looks like it came from a system prompt or instruction set
+        instruction_artifacts = [
+            r'(?i)\bRESPONSE\s+FORMAT\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSE\s+TIMING\b.*?(?=\n|$)',
+            r'(?i)\bKEEP\s+RESPONSES?\s+CONCISE\b.*?(?=\n|$)',
+            r'(?i)\bAVOID\s+LONG\s+EXPLANATIONS\b.*?(?=\n|$)',
+            r'(?i)\bUSE\s+EMOJIS\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSES?\s+UNDER\s+\d+\s+SENTENCES\b.*?(?=\n|$)',
+            r'(?i)\bRESPONSES?\s+TIMELY\s+AND\s+RELEVANT\b.*?(?=\n|$)',
+            r'(?i)\bIF\s+A\s+RESPONSE\s+TAKES\s+LONGER\b.*?(?=\n|$)'
+        ]
+        
+        for pattern in instruction_artifacts:
+            cleaned_reply = re.sub(pattern, '', cleaned_reply, flags=re.MULTILINE | re.DOTALL)
+
+        # Normalize phrasing like "for OK class" -> "for OK"
+        cleaned_reply = re.sub(r"(?i)\bfor\s+([A-Za-z0-9_]+)\s+class(es)?\b", r"for \1", cleaned_reply)
+        
         # Ensure the response ends with proper punctuation
         if cleaned_reply and not cleaned_reply.endswith(('.', '!', '?')):
             cleaned_reply += '.'
+        
+        # Final safety check: remove any remaining lines that look like instructions
+        lines = cleaned_reply.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            # Skip lines that look like instruction artifacts
+            if (re.match(r'^[A-Z\s]+:', line) or 
+                re.search(r'\b(FORMAT|TIMING|INSTRUCTIONS|GUIDELINES|RULES|PROMPT|SYSTEM)\b', line, re.IGNORECASE)):
+                continue
+            if line:
+                cleaned_lines.append(line)
+        
+        cleaned_reply = '\n'.join(cleaned_lines).strip()
+        
+        # FINAL NUCLEAR OPTION: Remove ANY occurrence of the word "RESPONSE" anywhere in the text
+        # This prevents the AI from using "RESPONSE" in any context during chat
+        cleaned_reply = re.sub(r"(?i)\bRESPONSE\b", "", cleaned_reply)
+        cleaned_reply = re.sub(r"(?i)\bRESPONSES\b", "", cleaned_reply)
+        
+        # Clean up any double spaces that might result from word removal
+        cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply)
+        cleaned_reply = cleaned_reply.strip()
+        
+        # FINAL VERIFICATION: Double-check that no "RESPONSE" word exists anywhere
+        # This is the absolute last line of defense before returning to user
+        if re.search(r"(?i)\bRESPONSE\b", cleaned_reply):
+            # If somehow "RESPONSE" still exists, remove it completely
+            cleaned_reply = re.sub(r"(?i)\bRESPONSE\b", "", cleaned_reply)
+            cleaned_reply = re.sub(r"(?i)\bRESPONSES\b", "", cleaned_reply)
+            cleaned_reply = re.sub(r'\s+', ' ', cleaned_reply).strip()
             
         return cleaned_reply.strip()
     

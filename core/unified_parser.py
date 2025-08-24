@@ -164,7 +164,7 @@ class UnifiedParser:
                 r'\b(?:mean|median|variance|std|min|max|count)\b'
             ],
             CommandType.PLOT: [
-                r'\b(?:show|create|generate|make|display|plot)\b',
+                r'\b(?:show|display|plot)\b',  # Removed generic words like 'create', 'generate', 'make'
                 r'\b(?:line graph|histogram|scatter|correlation|heatmap)\b'
             ],
             CommandType.COMPARISON: [
@@ -176,8 +176,9 @@ class UnifiedParser:
                 r'\b(?:pattern|trend|relationship|insight)\b'
             ],
             CommandType.TOP_FEATURES: [
-                r'\b(?:top|best|most|important|discriminative|separating|separate)\b',
+                r'\b(?:top|best|most|discriminative|separating|separate)\b',
                 r'\b(?:features|indices|characteristics|sensors|measures|statistics)\b',
+                r'\b(?:important)\s+(?:feature|features)\b',
                 r'\b(?:list|show|get|find|identify)\b.*\b(?:top|best|most)\b',
                 r'\b(?:top|best|most)\b.*\b(?:features|indices|characteristics|sensors)\b'
             ],
@@ -191,29 +192,29 @@ class UnifiedParser:
         self.sensor_mapping = {
             # Temperature sensors
             'HTS221_TEMP': ['hts221_temp', 'hts221', 'temperature', 'temp', 'thermal'],
-            'temperature_mean': ['temperature', 'temp', 'thermal', 'heat'],
+            'temperature_mean': ['temperature', 'temp', 'thermal', 'heat', 'hts221_temp', 'hts221', 'hts221 temperature'],
             
             # Humidity sensors
-            'HTS221_HUM': ['hts221_hum', 'hts221_humidity', 'humidity', 'hum', 'moisture'],
-            'humidity_mean': ['humidity', 'hum', 'moisture', 'wetness'],
+            'HTS221_HUM': ['hts221_hum', 'hts221_humidity', 'hts221 humidity', 'humidity', 'hum', 'moisture', 'wetness'],
+            'humidity_mean': ['humidity', 'hum', 'moisture', 'wetness', 'hts221_hum', 'hts221_humidity', 'hts221 humidity'],
             
             # Pressure sensors
-            'LPS22HH_PRESS': ['lps22hh_press', 'lps22hh', 'pressure', 'press', 'barometric'],
-            'pressure_mean': ['pressure', 'press', 'barometric', 'force'],
+            'LPS22HH_PRESS': ['lps22hh_press', 'lps22hh', 'lps22hh pressure', 'pressure', 'press', 'barometric', 'force'],
+            'pressure_mean': ['pressure', 'press', 'barometric', 'force', 'lps22hh_press', 'lps22hh', 'lps22hh pressure'],
             
             # Acceleration sensors
-            'IIS3DWB_ACC': ['iis3dwb_acc', 'iis3dwb', 'acceleration', 'acc', 'motion'],
-            'acceleration_x_mean': ['acceleration_x', 'acc_x', 'accel_x', 'motion_x'],
-            'acceleration_y_mean': ['acceleration_y', 'acc_y', 'accel_y', 'motion_y'],
-            'acceleration_z_mean': ['acceleration_z', 'acc_z', 'accel_z', 'motion_z'],
+            'IIS3DWB_ACC': ['iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration', 'acceleration_x', 'acc_x', 'accel_x', 'motion_x', 'acceleration_y', 'acc_y', 'accel_y', 'motion_y', 'acceleration_z', 'acc_z', 'accel_z', 'motion_z'],
+            'acceleration_x_mean': ['acceleration_x', 'acc_x', 'accel_x', 'motion_x', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
+            'acceleration_y_mean': ['acceleration_y', 'acc_y', 'accel_y', 'motion_y', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
+            'acceleration_z_mean': ['acceleration_z', 'acc_z', 'accel_z', 'motion_z', 'iis3dwb_acc', 'iis3dwb', 'iis3dwb acceleration'],
             
             # Gyroscope sensors
-            'gyroscope_x_mean': ['gyroscope_x', 'gyro_x', 'rotation_x', 'angular_x'],
-            'gyroscope_y_mean': ['gyroscope_y', 'gyro_y', 'rotation_y', 'angular_y'],
-            'gyroscope_z_mean': ['gyroscope_z', 'gyro_z', 'rotation_z', 'angular_z'],
+            'gyroscope_x_mean': ['gyroscope_x', 'gyro_x', 'rotation_x', 'angular_x', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
+            'gyroscope_y_mean': ['gyroscope_y', 'gyro_y', 'rotation_y', 'angular_y', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
+            'gyroscope_z_mean': ['gyroscope_z', 'gyro_z', 'rotation_z', 'angular_z', 'iis3dwb_gyro', 'iis3dwb', 'iis3dwb gyroscope'],
             
             # Microphone
-            'microphone_mean': ['microphone', 'mic', 'audio', 'sound', 'acoustic']
+            'microphone_mean': ['microphone', 'mic', 'audio', 'sound', 'acoustic', 'iis3dwb_mic', 'iis3dwb', 'iis3dwb microphone']
         }
         
         # Class patterns
@@ -324,18 +325,68 @@ class UnifiedParser:
         elif any(indicator in text_lower for indicator in visual_indicators):
             response_type = "visual"
         
-        # Check for specific command types
-        for command_type, patterns in self.command_patterns.items():
-            for pattern in patterns:
-                if pattern.search(text_lower):
-                    # Override response type for specific commands
-                    if command_type == CommandType.TOP_FEATURES:
-                        response_type = "text"
-                    elif command_type == CommandType.PLOT:
-                        response_type = "visual"
-                    elif command_type == CommandType.STATISTIC and response_type == "auto":
-                        response_type = "text"  # Statistics default to text
-                    return command_type, response_type
+        # Check for specific command types with stricter conditions
+        # Statistics: require BOTH an action verb and a statistic term
+        stat_actions = re.search(r"\b(?:what is|get|show|calculate|give me|find|compute)\b", text_lower)
+        stat_terms = re.search(r"\b(?:mean|median|variance|std|min|max|count)\b", text_lower)
+        if stat_actions and stat_terms:
+            return CommandType.STATISTIC, "text"
+
+        # Plot: require BOTH plot intent words AND either specific plot types OR data-related context
+        plot_action_words = ['show', 'create', 'generate', 'make', 'display', 'plot']
+        has_plot_action = any(word in text_lower for word in plot_action_words)
+        
+        if has_plot_action:
+            # Check for specific plot types first (highest confidence)
+            has_specific_plot_type = any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.LINE_GRAPH, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HISTOGRAM, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.SCATTER, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.CORRELATION, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.VIOLIN, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HEATMAP, []))
+            
+            if has_specific_plot_type:
+                return CommandType.PLOT, "visual"
+            
+            # Check for data-related context (sensors, features, data analysis)
+            data_context_indicators = [
+                'sensor', 'data', 'feature', 'temperature', 'humidity', 'pressure', 
+                'acceleration', 'gyroscope', 'microphone', 'statistic', 'analysis',
+                'correlation', 'distribution', 'trend', 'pattern', 'class', 'ok', 'ko'
+            ]
+            has_data_context = any(indicator in text_lower for indicator in data_context_indicators)
+            
+            if has_data_context:
+                return CommandType.PLOT, "visual"
+            
+            # If we have plot action words but no data context, it's likely NOT a plot request
+            # (e.g., "how to create tea", "make a sandwich", etc.)
+            # Don't classify as plot command
+
+        # Generic plot requests (no specific type mentioned) - but only with data context
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.PLOT, [])):
+            # Additional check: ensure this isn't just a generic "create" word without data context
+            data_context_indicators = [
+                'sensor', 'data', 'feature', 'temperature', 'humidity', 'pressure', 
+                'acceleration', 'gyroscope', 'microphone', 'statistic', 'analysis',
+                'correlation', 'distribution', 'trend', 'pattern', 'class', 'ok', 'ko'
+            ]
+            has_data_context = any(indicator in text_lower for indicator in data_context_indicators)
+            
+            if has_data_context:
+                return CommandType.PLOT, "visual"
+
+        # Comparison: keywords
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.COMPARISON, [])):
+            return CommandType.COMPARISON, response_type
+
+        # Analysis: keywords
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.ANALYSIS, [])):
+            return CommandType.ANALYSIS, response_type
+
+        # Top features: prior check above may have returned; otherwise check patterns
+        if any(p.search(text_lower) for p in self.command_patterns.get(CommandType.TOP_FEATURES, [])):
+            return CommandType.TOP_FEATURES, "text"
         
         # Check for statistical patterns
         for stat_type, patterns in self.stat_patterns.items():
@@ -343,11 +394,20 @@ class UnifiedParser:
                 if pattern.search(text_lower):
                     return CommandType.STATISTIC, "text"
         
-        # Check for plot patterns
+        # Check for plot patterns (but only with data context)
         for plot_type, patterns in self.plot_patterns.items():
             for pattern in patterns:
                 if pattern.search(text_lower):
-                    return CommandType.PLOT, "visual"
+                    # Additional check: ensure this isn't just a generic pattern without data context
+                    data_context_indicators = [
+                        'sensor', 'data', 'feature', 'temperature', 'humidity', 'pressure', 
+                        'acceleration', 'gyroscope', 'microphone', 'statistic', 'analysis',
+                        'correlation', 'distribution', 'trend', 'pattern', 'class', 'ok', 'ko'
+                    ]
+                    has_data_context = any(indicator in text_lower for indicator in data_context_indicators)
+                    
+                    if has_data_context:
+                        return CommandType.PLOT, "visual"
         
         # Default fallback
         return CommandType.UNKNOWN, "text"
@@ -368,6 +428,9 @@ class UnifiedParser:
     
     def _parse_plot_command(self, text_lower: str, parsed: UnifiedParsedCommand):
         """Parse plot command components"""
+        # Store the user's original plot type request for display
+        original_request = getattr(parsed, 'original_request', '')
+        
         # Detect plot type
         for plot_type, patterns in self.plot_patterns.items():
             for pattern in patterns:
@@ -376,6 +439,51 @@ class UnifiedParser:
                     break
             if parsed.plot_type:
                 break
+        
+        # Store the user's original plot type request for display
+        if not hasattr(parsed, 'user_plot_type'):
+            user_plot_type = self._extract_user_plot_type(original_request, text_lower)
+            setattr(parsed, 'user_plot_type', user_plot_type)
+    
+    def _extract_user_plot_type(self, original_request: str, text_lower: str) -> str:
+        """Extract the user's exact plot type request for display"""
+        if not original_request:
+            return 'line graph'
+        
+        # Look for plot type words in the original request (preserve user's exact wording)
+        plot_type_patterns = [
+            (r'\b(?:line\s+graph?|linegraph?|line-graph?)\b', 'line graph'),
+            (r'\b(?:histogram|hist|distribution\s+plot)\b', 'histogram'),
+            (r'\b(?:scatter\s+plot?|scatterplot?)\b', 'scatter plot'),
+            (r'\b(?:correlation\s+matrix?|corr\s+matrix|correlation\s+plot?)\b', 'correlation matrix'),
+            (r'\b(?:violin\s+plot?)\b', 'violin plot'),
+            (r'\b(?:heatmap?|heat\s+map?|heat-map?)\b', 'heatmap'),
+            (r'\b(?:bar\s+chart?|bar\s+graph?)\b', 'bar chart'),
+            (r'\b(?:pie\s+chart?)\b', 'pie chart'),
+            (r'\b(?:time\s+plot?|timeseries?|time\s+series?|temporal\s+plot?)\b', 'time plot')
+        ]
+        
+        for pattern, plot_name in plot_type_patterns:
+            if re.search(pattern, original_request, re.IGNORECASE):
+                return plot_name
+        
+        # If no specific plot type found, try to infer from context
+        if any(word in text_lower for word in ['line', 'linear', 'trend']):
+            return 'line graph'
+        elif any(word in text_lower for word in ['histogram', 'distribution', 'hist']):
+            return 'histogram'
+        elif any(word in text_lower for word in ['scatter', 'correlation']):
+            return 'scatter plot'
+        elif any(word in text_lower for word in ['violin']):
+            return 'violin plot'
+        elif any(word in text_lower for word in ['heatmap', 'heat map']):
+            return 'heatmap'
+        elif any(word in text_lower for word in ['bar', 'column']):
+            return 'bar chart'
+        elif any(word in text_lower for word in ['time', 'temporal', 'timeseries']):
+            return 'time plot'
+        
+        return 'line graph'  # Default
     
     def _parse_comparison_command(self, text_lower: str, parsed: UnifiedParsedCommand):
         """Parse comparison command components"""
@@ -425,6 +533,35 @@ class UnifiedParser:
     
     def _parse_target_features(self, text_lower: str, parsed: UnifiedParsedCommand):
         """Extract target features from the text"""
+        # Store the original user request for display purposes
+        original_request = getattr(parsed, 'original_request', '')
+        
+        # First, try to detect vendor + measurement combinations (e.g., "HTS221 temp")
+        vendor_measurement_patterns = [
+            r'\b([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\s+(temp|temperature|hum|humidity|press|pressure|acc|acceleration|gyro|gyroscope|mic|microphone|mag|magnetometer)\b',
+            r'\b(temp|temperature|hum|humidity|press|pressure|acc|acceleration|gyro|gyroscope|mic|microphone|mag|magnetometer)\s+([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\b'
+        ]
+        
+        for pattern in vendor_measurement_patterns:
+            matches = re.findall(pattern, original_request, re.IGNORECASE)
+            for match in matches:
+                if len(match) == 2:
+                    vendor, measurement = match
+                    # Combine them as a single logical feature
+                    combined_feature = f"{vendor}_{measurement}"
+                    if combined_feature not in parsed.target_features:
+                        parsed.target_features.append(combined_feature)
+                    if parsed.target_column is None:
+                        parsed.target_column = combined_feature
+        
+        # Detect vendor-specific sensor codes (e.g., HTS221, LPS22HH, STTS751)
+        vendor_tokens = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", text_lower.upper())
+        for tok in vendor_tokens:
+            if tok not in parsed.target_features:
+                parsed.target_features.append(tok)
+            if parsed.target_column is None:
+                parsed.target_column = tok
+        
         # First, try to find exact sensor names
         for sensor_name, aliases in self.sensor_mapping.items():
             for alias in aliases:
@@ -433,8 +570,10 @@ class UnifiedParser:
                         parsed.target_column = sensor_name
                     if sensor_name not in parsed.target_features:
                         parsed.target_features.append(sensor_name)
+                    break
         
         # If no exact match, try to infer from context
+        # BUT only if we don't already have vendor codes (which are more specific)
         if not parsed.target_features:
             if any(word in text_lower for word in ['temperature', 'temp', 'thermal']):
                 parsed.target_features.append('temperature_mean')
@@ -448,6 +587,73 @@ class UnifiedParser:
                 parsed.target_features.append('gyroscope_x_mean')
             elif any(word in text_lower for word in ['microphone', 'mic', 'audio']):
                 parsed.target_features.append('microphone_mean')
+        
+        # Store the original user request for display purposes
+        if not hasattr(parsed, 'user_display_target'):
+            # Extract the most relevant part of the user's request for display
+            display_target = self._extract_display_target(original_request, text_lower)
+            setattr(parsed, 'user_display_target', display_target)
+    
+    def _extract_display_target(self, original_request: str, text_lower: str) -> str:
+        """Extract a user-friendly display target from the original request"""
+        if not original_request:
+            return 'the requested data'
+        
+        # First, try to extract vendor + measurement combinations (e.g., "HTS221 temp")
+        vendor_measurement_patterns = [
+            r'\b([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\s+(temp|temperature|hum|humidity|press|pressure|acc|acceleration|gyro|gyroscope|mic|microphone|mag|magnetometer)\b',
+            r'\b(temp|temperature|hum|humidity|press|pressure|acc|acceleration|gyro|gyroscope|mic|microphone|mag|magnetometer)\s+([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\b'
+        ]
+        
+        for pattern in vendor_measurement_patterns:
+            matches = re.findall(pattern, original_request, re.IGNORECASE)
+            if matches:
+                # Format as "HTS221 temperature" for display
+                vendor, measurement = matches[0]
+                measurement_display = {
+                    'temp': 'temperature',
+                    'hum': 'humidity', 
+                    'press': 'pressure',
+                    'acc': 'acceleration',
+                    'gyro': 'gyroscope',
+                    'mic': 'microphone',
+                    'mag': 'magnetometer'
+                }.get(measurement.lower(), measurement)
+                return f"{vendor} {measurement_display}"
+        
+        # If no vendor + measurement combination found, try to extract just vendor codes
+        vendor_codes = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", original_request.upper())
+        if vendor_codes:
+            # Return the first vendor code found (user's exact request)
+            return vendor_codes[0]
+        
+        # Try to extract sensor names from the original request (preserve user's exact wording)
+        sensor_patterns = [
+            r'\b(?:temperature|temp|thermal)\b',
+            r'\b(?:humidity|hum|moisture)\b', 
+            r'\b(?:pressure|press|barometric)\b',
+            r'\b(?:acceleration|acc|motion)\b',
+            r'\b(?:gyroscope|gyro|rotation)\b',
+            r'\b(?:microphone|mic|audio)\b',
+            r'\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b'  # Vendor codes like STTS751, HTS221
+        ]
+        
+        for pattern in sensor_patterns:
+            matches = re.findall(pattern, original_request, re.IGNORECASE)
+            if matches:
+                return ', '.join(matches)
+        
+        # If no specific sensor found, try to extract meaningful phrases
+        meaningful_phrases = re.findall(r'\b\w+(?:\s+\w+)*\b', original_request)
+        if meaningful_phrases:
+            # Take the first meaningful phrase that's not a common word
+            common_words = {'create', 'make', 'generate', 'show', 'display', 'plot', 'graph', 'for', 'of', 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'from', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can'}
+            
+            for phrase in meaningful_phrases:
+                if phrase.lower() not in common_words and len(phrase) > 2:
+                    return phrase
+        
+        return 'the requested data'
     
     def _parse_class_filters(self, text_lower: str, parsed: UnifiedParsedCommand):
         """Extract class filters from the text"""

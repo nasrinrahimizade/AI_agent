@@ -96,19 +96,24 @@ class ResponseFormatter:
     def format_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format ML result into a user-friendly response"""
         try:
-            if ml_result.get('status') == 'error':
-                return self._format_error_response(parsed_command, ml_result)
-            
             command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
-            response_type = getattr(parsed_command, 'response_type', 'auto')
-            target_column = parsed_command.target_column
             
-            # Route to appropriate formatter
+            # Special handling for plot commands: prioritize plot_ready over status
+            if command_type == 'plot':
+                # For plot commands, always use the robust plot verification in _format_plot_response
+                # This method will check multiple indicators to determine if plot was actually created
+                formatted_response = self._format_plot_response(parsed_command, ml_result)
+            elif ml_result.get('status') == 'error':
+                # For non-plot commands, route errors appropriately
+                return self._format_error_response(parsed_command, ml_result)
+            else:
+                # Route to appropriate formatter for successful non-plot commands
+                response_type = getattr(parsed_command, 'response_type', 'auto')
+                target_column = parsed_command.target_column
+            
             try:
                 if command_type == 'top_features':
                     formatted_response = self._format_top_features_response(parsed_command, ml_result)
-                elif command_type == 'plot':
-                    formatted_response = self._format_plot_response(parsed_command, ml_result)
                 elif command_type == 'comparison':
                     formatted_response = self._format_comparison_response(parsed_command, ml_result)
                 elif command_type == 'analysis':
@@ -121,8 +126,9 @@ class ResponseFormatter:
                 # Fallback to error response
                 return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
             
-            # For visual responses, keep the main response short and direct
-            if response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']:
+            # For visual responses, keep the main response short and direct (only on success)
+            response_type = getattr(parsed_command, 'response_type', 'auto')
+            if (response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']) and formatted_response.get('status') == 'success':
                 # Keep only the main response, minimize context and suggestions
                 formatted_response['main_response'] = formatted_response['main_response']
                 formatted_response['context'] = "Visualization ready."
@@ -302,109 +308,23 @@ class ResponseFormatter:
             features = ml_result['top_features']
             feature_details = ml_result.get('feature_details', {})
             count = len(features)
-            
-            # Listing mode: one line per feature with rank, feature, sensor, score
-            original_request_text = getattr(parsed_command, 'original_request', '') or ''
-            if isinstance(original_request_text, str) and 'list' in original_request_text.lower():
-                lines = []
-                lines.append(f"Top {count} features (OK vs KO):")
-                lines.append("Rank  Feature                               Sensor           Score")
-                lines.append("---------------------------------------------------------------")
-                rows = []
-                for i, feature in enumerate(features, 1):
-                    details = feature_details.get(feature, {})
-                    sep = details.get('discriminative_score') or details.get('separation_score') or 0.0
-                    sensor_name = feature.split('_')[0] if '_' in feature else 'Unknown'
-                    lines.append(f"{i:<5} {feature[:35]:<35} {sensor_name:<15} {sep:>.4f}")
-                    rows.append([str(i), feature, sensor_name, f"{sep:.4f}"])
-                main_text = "\n".join(lines)
-                table_data = {
-                    'headers': ['Rank', 'Feature', 'Sensor', 'Score'],
-                    'rows': rows,
-                    'title': f'Top {count} Features (OK vs KO)'
-                }
-                return {
-                    'status': 'success',
-                    'main_response': main_text,
-                    'context': context,
-                    'suggestions': [
-                        "Show distributions of these features",
-                        "Compare the top 2 features",
-                        "List top features per sensor"
-                    ],
-                    'data_source': ml_result.get('data_source', 'Mock data'),
-                    'confidence': parsed_command.confidence,
-                    'data_quality': data_quality,
-                    'analysis_confidence': confidence,
-                    'plot_suggestion': None,
-                    'table_data': table_data
-                }
 
-            # Pretty, line-broken layout per feature with nested indentation
-            lines = []
-            lines.append(f"Top {count} statistical indices that best separate {classes_text} samples:")
+            # Compact, structured list output
+            lines = [f"Top {count} discriminative features (OK vs KO):"]
+            rows = []
             for i, feature in enumerate(features, 1):
-                lines.append(f"{i}. {feature}")
                 details = feature_details.get(feature, {})
-                # Significance
-                p_value = details.get('p_value', None)
-                sig_flag = details.get('statistical_significance')
-                if p_value is not None:
-                    significance = "highly significant" if p_value < 0.01 else "significant" if p_value < 0.05 else "not significant"
-                else:
-                    significance = sig_flag if sig_flag else "not available"
-                lines.append(f"   - Statistical significance: {significance}")
-                # Class means
-                class_means = details.get('class_means', {})
-                if class_means:
-                    lines.append(f"   - Class means:")
-                    if 'OK' in class_means:
-                        lines.append(f"     - OK: {class_means['OK']:.2f}")
-                    if 'KO' in class_means:
-                        lines.append(f"     - KO: {class_means['KO']:.2f}")
-                # Spacer between features
-                if i != len(features):
-                    lines.append("")
+                sep = details.get('discriminative_score') or details.get('separation_score') or 0.0
+                lines.append(f"{i}. {feature} — score {sep:.4f}")
+                rows.append([str(i), feature, f"{sep:.4f}"])
 
-            # Explanatory text at the bottom (kept intact except global parentheses cleaner may run later)
-            expl = []
-            expl.append("These features were selected using Statistical feature identification, which measures the discriminative power between OK and KO classes. Higher F-statistics indicate greater separation between classes, making these features most effective for classification and quality control purposes.")
+            main_text = "\n".join(lines)
 
-            # Add sample count information
-            sample_count = ml_result.get('sample_count', 0)
-            if sample_count > 0:
-                expl.append(f"Analysis based on {sample_count} samples from the dataset.")
-
-            # Append per-model section if available
-            model_imps = ml_result.get('model_importances') or {}
-            if model_imps:
-                expl.append("")
-                expl.append("Top 5 important features by model:")
-                for model_name, feats in model_imps.items():
-                    expl.append(f"{model_name}:")
-                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
-                    for j, entry in enumerate(sorted_feats, 1):
-                        fname = entry.get('feature', 'Unknown')
-                        score = entry.get('importance', 0.0)
-                        expl.append(f"  {j}. {fname}  {score:.4f}")
-                    expl.append("")
-
-            main_text = "\n".join(lines + ["", *expl]).rstrip()
-
-            # Append per-model top features (Top 5) with scores, clearly grouped by model
-            model_imps = ml_result.get('model_importances') or {}
-            if model_imps:
-                lines = []
-                lines.append("\nTop 5 important features by model:")
-                for model_name, feats in model_imps.items():
-                    lines.append(f"\n{model_name}:")
-                    # Sort by importance descending and take top 5
-                    sorted_feats = sorted(feats, key=lambda x: x.get('importance', 0.0), reverse=True)[:5]
-                    for i, entry in enumerate(sorted_feats, 1):
-                        fname = entry.get('feature', 'Unknown')
-                        score = entry.get('importance', 0.0)
-                        lines.append(f"{i}. {fname}  {score:.4f}")
-                main_text += "\n" + "\n".join(lines)
+            table_data = {
+                'headers': ['Rank', 'Feature', 'Score'],
+                'rows': rows,
+                'title': f'Top {count} Features (OK vs KO)'
+            }
             
         else:
             # Fallback to mock data
@@ -438,33 +358,127 @@ class ResponseFormatter:
         }
     
     def _format_plot_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format a plot response"""
-        plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
-        target_features = parsed_command.target_features
+        """Format a plot response with robust plot creation verification"""
+        # DEBUG: Log what we're receiving
+        self.logger.info(f"DEBUG: Plot response formatter received ml_result: {ml_result}")
         
-        if target_features:
-            features_text = ', '.join(target_features)
+        # Use the user's exact plot type request for display
+        user_plot_type = getattr(parsed_command, 'user_plot_type', None)
+        if user_plot_type:
+            plot_type_display = user_plot_type
         else:
-            features_text = 'the requested data'
+            # Fallback to parsed plot type
+            plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
+            plot_type_display = plot_type.replace('_', ' ')
         
-        # Short, direct response for plot requests
+        # Use the user's exact target request for display
+        user_display_target = getattr(parsed_command, 'user_display_target', None)
+        if user_display_target:
+            display_target = user_display_target
+        else:
+            # Fallback to parsed target features
+            target_features = parsed_command.target_features
+            if target_features:
+                display_target = ', '.join(target_features)
+            else:
+                display_target = 'the requested data'
+        
+        # DEBUG: Log what we're using for display
+        self.logger.info(f"DEBUG: Using plot_type_display: '{plot_type_display}', display_target: '{display_target}'")
+        
+        # Split display_target into sensor_name and sensor_tag components
+        sensor_name, sensor_tag = self._split_display_target(display_target)
+        
+        # ALWAYS check if plot was actually created by verifying multiple indicators
+        plot_was_created = False
+        plot_creation_evidence = []
+        
+        # Check plot_ready flag (primary indicator)
         if ml_result.get('plot_ready', False):
-            main_text = f"✅ {plot_type.title()} created and ready to display."
-            plot_suggestion = plot_type
-        else:
-            main_text = f" Preparing {plot_type} visualization..."
-            plot_suggestion = None
+            plot_was_created = True
+            plot_creation_evidence.append("plot_ready flag is True")
         
-        # Minimal context and suggestions for plot responses
-        context = "Visualization ready."
-        suggestions = [
-            "Analyze the patterns shown",
-            "Request statistical details",
-            "Generate additional plots"
-        ]
+        # Check if plot file was created
+        if ml_result.get('plot_path'):
+            plot_was_created = True
+            plot_creation_evidence.append("plot file exists")
+        
+        # Check if matplotlib figure was created
+        if ml_result.get('figure'):
+            plot_was_created = True
+            plot_creation_evidence.append("matplotlib figure exists")
+        
+        # Check if plot data was prepared successfully
+        if ml_result.get('plot_data'):
+            plot_creation_evidence.append("plot data was prepared")
+        
+        # Check status
+        if ml_result.get('status') == 'success':
+            plot_creation_evidence.append("status is success")
+        elif ml_result.get('status') == 'error':
+            plot_creation_evidence.append("status is error")
+        
+        # IMPROVED LOGIC: If status is success and we have plot data, consider it successful
+        # This handles cases where plot_ready might not be set but the plot was actually created
+        if ml_result.get('status') == 'success' and ml_result.get('plot_data'):
+            plot_was_created = True
+            plot_creation_evidence.append("status success + plot data available")
+        
+        # FALLBACK: If we have any evidence of plot creation, consider it successful
+        # This prevents false error messages when plots are actually working
+        if not plot_was_created and (ml_result.get('plot_data') or ml_result.get('plot_path') or ml_result.get('figure')):
+            plot_was_created = True
+            plot_creation_evidence.append("fallback: plot creation evidence detected")
+        
+        # DEBUG: Log the final decision
+        self.logger.info(f"DEBUG: Final plot_was_created decision: {plot_was_created}")
+        self.logger.info(f"DEBUG: Plot creation evidence: {plot_creation_evidence}")
+        
+        # Determine final response based on plot creation evidence
+        if plot_was_created:
+            # Plot was successfully created - show success message in exact format
+            main_text = f"plot created for {sensor_name} {sensor_tag}"
+            plot_suggestion = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
+            status = 'success'
+            context = "Visualization ready."
+            suggestions = [
+                "Analyze the patterns shown",
+                "Request statistical details",
+                "Generate additional plots"
+            ]
+        else:
+            # Plot creation failed - show error message in exact format
+            main_text = f"unable to create plot for {sensor_name} {sensor_tag}"
+            plot_suggestion = None
+            status = 'error'
+            
+            # Build context with available sensors for guidance
+            available_sensors = ml_result.get('available_sensors', [])
+            available_features = ml_result.get('available_features_sample', [])
+            
+            context_parts = ["Plot request could not be fulfilled due to validation errors."]
+            
+            # Add unavailable requested sensors if any
+            requested_features = ml_result.get('requested_features', [])
+            if requested_features:
+                context_parts.append(f"Unavailable requested: {', '.join(requested_features)}")
+            
+            # Add available sensors
+            if available_sensors:
+                context_parts.append(f"Available sensors: {', '.join(available_sensors[:5])}")
+            if available_features:
+                context_parts.append(f"Sample features: {', '.join(available_features[:5])}")
+            
+            context = " ".join(context_parts)
+            
+            suggestions = [
+                "Try a supported plot type",
+                "Check feature names and try again",
+                "Request a dataset overview"
+            ]
         
         return {
-            'status': 'success',
+            'status': status,
             'main_response': main_text,
             'context': context,
             'suggestions': suggestions,
@@ -473,8 +487,33 @@ class ResponseFormatter:
             'plot_suggestion': plot_suggestion,
             'plot_data': ml_result.get('plot_data'),
             'plot_path': ml_result.get('plot_path'),
-            'figure': ml_result.get('figure')
+            'figure': ml_result.get('figure'),
+            'plot_ready': plot_was_created,  # Use our verified status
+            'plot_creation_evidence': plot_creation_evidence  # For debugging
         }
+    
+    def _split_display_target(self, display_target: str) -> tuple[str, str]:
+        """Split display_target into sensor_name and sensor_tag components"""
+        if not display_target or display_target == 'the requested data':
+            return 'unknown', 'sensor'
+        
+        # Try to extract vendor + measurement pattern (e.g., "HTS221 temperature")
+        vendor_measurement_pattern = r'^([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\s+(.+)$'
+        match = re.match(vendor_measurement_pattern, display_target)
+        if match:
+            sensor_tag = match.group(1)  # e.g., "HTS221"
+            sensor_name = match.group(2)  # e.g., "temperature"
+            return sensor_name, sensor_tag
+        
+        # If no vendor + measurement pattern, try to extract vendor code
+        vendor_code_pattern = r'^([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)$'
+        if re.match(vendor_code_pattern, display_target):
+            sensor_tag = display_target  # e.g., "STTS751"
+            sensor_name = 'sensor'  # generic name
+            return sensor_name, sensor_tag
+        
+        # Fallback: treat as generic sensor
+        return 'sensor', display_target
     
     def _format_comparison_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format a comparison response"""
@@ -654,7 +693,7 @@ class ResponseFormatter:
         
         return {
             'status': 'error',
-            'main_response': f"Sorry, I couldn't process that request: {error_message}",
+            'main_response': f"❌ {error_message}",
             'context': "Please check your request format and try again.",
             'suggestions': [
                 "Make sure you specify a sensor name",
