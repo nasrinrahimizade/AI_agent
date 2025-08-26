@@ -81,6 +81,18 @@ class MLInterface:
         
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
 
+        self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
+                                   'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
+        # Supported plots (aliases)
+        self.supported_plots = {
+            'histogram': ['histogram', 'hist'],
+            'line': ['line', 'line graph', 'line_graph'],
+            'scatter': ['scatter', 'scatterplot'],
+            'correlation': ['correlation', 'correlation_matrix'],
+            'violin': ['violin', 'violinplot'],
+            'timeseries': ['timeseries', 'time series', 'time plot', 'temporal']
+        }
+
     def update_data(self, feature_matrix_path: str, dataframe: pd.DataFrame = None, base_path: str = None):
         """Update the data path and reload data"""
         print("updating data for ml interface")
@@ -1983,4 +1995,3 @@ class MLInterface:
 
 # Global instance
 ml_interface = MLInterface()
-
