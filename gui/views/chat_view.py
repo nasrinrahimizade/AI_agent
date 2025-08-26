@@ -449,7 +449,8 @@ class ChatView(QWidget):
             'create a',
             'display',
             'analyze',
-            'compare'
+            'compare',
+            'plot'
         ]
         has_specific_pattern = any(pattern in user_lower for pattern in specific_patterns)
         

@@ -973,9 +973,6 @@ class PlottingEngine:
                 return fig
             # Fallback to feature_matrix-based time series
             return self.plot_time_series(parsed['features'])
-        # elif parsed['plot_type'] == 'frequency':
-        #     print(f"📡 Generating frequency domain plot")
-        #     return self.plot_frequency_domain(parsed['features'])
         elif parsed['plot_type'] == 'frequency':
             print(f"📡 Generating frequency domain plot")
             return self.plot_frequency_domain(parsed['features'], parsed['sensor'], parsed['class_filter'])

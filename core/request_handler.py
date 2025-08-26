@@ -124,8 +124,8 @@ class RequestHandler:
                         'plot_ready': False
                     }
                 
-                # Check if this is a time-series request that needs vendor-aware dataset plotting
-                if plot_type.lower() in ['timeseries', 'time series', 'time plot', 'temporal']:
+                # Check if this is a time-series or frequency request that needs vendor-aware dataset plotting
+                if plot_type.lower() in ['timeseries', 'time series', 'time plot', 'temporal', 'frequency', 'fft', 'spectrum']:
                     # Check if the request contains vendor specifications
                     vendor_pattern = r'\b(HTS221|STTS751|LPS22HH|IIS3DWB|ISM330DHCX|IIS2MDC|IMP23ABSU|IMP34DT05)\b'
                     if re.search(vendor_pattern, parsed_command.original_request, flags=re.I):
@@ -134,8 +134,18 @@ class RequestHandler:
                             from .ml_plotter import PlottingEngine as MLPlotter
                             ml_plotter = MLPlotter()
                             
-                            # Create the plot using the ML plotter
-                            fig = ml_plotter._plot_time_series_from_dataset(parsed_command.original_request)
+                            # Create the plot using the ML plotter based on plot type
+                            if plot_type.lower() in ['frequency', 'fft', 'spectrum']:
+                                # Parse the request to get sensor type and features
+                                parsed_request = ml_plotter.parse_plot_request(parsed_command.original_request)
+                                fig = ml_plotter.plot_frequency_domain(
+                                    parsed_request['features'], 
+                                    parsed_request['sensor'], 
+                                    parsed_request['class_filter']
+                                )
+                            else:
+                                # Time series plot
+                                fig = ml_plotter._plot_time_series_from_dataset(parsed_command.original_request)
                             
                             if fig:
                                 # Save the plot to a temporary file
@@ -144,6 +154,12 @@ class RequestHandler:
                                 plot_path = os.path.join(temp_dir, plot_filename)
                                 
                                 fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+                                
+                                # Set appropriate data source based on plot type
+                                if plot_type.lower() in ['frequency', 'fft', 'spectrum']:
+                                    data_source = 'ML Plotter with dataset frequency analysis'
+                                else:
+                                    data_source = 'ML Plotter with dataset time series data'
                                 
                                 return {
                                     'status': 'success',
@@ -154,23 +170,23 @@ class RequestHandler:
                                     'features': features,
                                     'filters': {'class': class_filters} if class_filters else {},
                                     'sample_count': 0,  # Dataset plots don't have sample counts from feature matrix
-                                    'data_source': 'ML Plotter with dataset data',
+                                    'data_source': data_source,
                                     'plot_ready': True
                                 }
                             else:
                                 # ML plotter failed to create plot
                                 return {
                                     'status': 'error',
-                                    'message': 'Failed to create time-series plot from dataset',
+                                    'message': f'Failed to create {plot_type} plot from dataset',
                                     'data_source': 'ML Plotter',
                                     'available_sensors': ml_interface.available_sensors,
                                     'plot_ready': False
                                 }
                         except Exception as e:
                             # Fall back to regular ML interface if ML plotter fails
-                            self.logger.warning(f"ML plotter failed for time-series, falling back to ML interface: {e}")
+                            self.logger.warning(f"ML plotter failed for {plot_type}, falling back to ML interface: {e}")
                 
-                # Regular plot flow (for non-time-series or when ML plotter fails)
+                # Regular plot flow (for non-time-series/frequency or when ML plotter fails)
                 # First get the plot data
                 plot_data_result = ml_interface.get_plot_data(
                     plot_type=plot_type,
