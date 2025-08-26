@@ -81,6 +81,18 @@ class MLInterface:
         
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
 
+        self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
+                                   'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
+        # Supported plots (aliases)
+        self.supported_plots = {
+            'histogram': ['histogram', 'hist'],
+            'line': ['line', 'line graph', 'line_graph'],
+            'scatter': ['scatter', 'scatterplot'],
+            'correlation': ['correlation', 'correlation_matrix'],
+            'violin': ['violin', 'violinplot'],
+            'timeseries': ['timeseries', 'time series', 'time plot', 'temporal']
+        }
+
     def update_data(self, feature_matrix_path: str, dataframe: pd.DataFrame = None, base_path: str = None):
         """Update the data path and reload data"""
         print("updating data for ml interface")
@@ -604,21 +616,93 @@ class MLInterface:
         if potential_matches:
             return potential_matches[0]
         
-        # Fallback: try common mappings based on your dataset structure
+        # Enhanced common mappings based on your dataset structure
         common_mappings = {
+            # Temperature sensors
             'temperature': 'HTS221_TEMP_TEMP_mean',
+            'temp': 'HTS221_TEMP_TEMP_mean',
+            'temperature_mean': 'HTS221_TEMP_TEMP_mean',
+            'temp_mean': 'HTS221_TEMP_TEMP_mean',
+            
+            # Humidity sensors
             'humidity': 'HTS221_HUM_HUM_mean',
+            'hum': 'HTS221_HUM_HUM_mean',
+            'humidity_mean': 'HTS221_HUM_HUM_mean',
+            'hum_mean': 'HTS221_HUM_HUM_mean',
+            
+            # Pressure sensors
             'pressure': 'LPS22HH_PRESS_PRESS_mean',
+            'press': 'LPS22HH_PRESS_PRESS_mean',
+            'pressure_mean': 'LPS22HH_PRESS_PRESS_mean',
+            'press_mean': 'LPS22HH_PRESS_PRESS_mean',
+            
+            # Acceleration sensors - comprehensive mapping
+            'acceleration': 'IIS3DWB_ACC_A_x_mean',
+            'acc': 'IIS3DWB_ACC_A_x_mean',
             'acceleration_x': 'IIS3DWB_ACC_A_x_mean',
             'acceleration_y': 'IIS3DWB_ACC_A_y_mean',
             'acceleration_z': 'IIS3DWB_ACC_A_z_mean',
+            'acc_x': 'IIS3DWB_ACC_A_x_mean',
+            'acc_y': 'IIS3DWB_ACC_A_y_mean',
+            'acc_z': 'IIS3DWB_ACC_A_z_mean',
+            'acceleration_x_mean': 'IIS3DWB_ACC_A_x_mean',
+            'acceleration_y_mean': 'IIS3DWB_ACC_A_y_mean',
+            'acceleration_z_mean': 'IIS3DWB_ACC_A_z_mean',
+            'acc_x_mean': 'IIS3DWB_ACC_A_x_mean',
+            'acc_y_mean': 'IIS3DWB_ACC_A_y_mean',
+            'acc_z_mean': 'IIS3DWB_ACC_A_z_mean',
+            
+            # Gyroscope sensors
+            'gyroscope': 'ISM330DHCX_GYRO_G_x_mean',
+            'gyro': 'ISM330DHCX_GYRO_G_x_mean',
             'gyroscope_x': 'ISM330DHCX_GYRO_G_x_mean',
             'gyroscope_y': 'ISM330DHCX_GYRO_G_y_mean',
             'gyroscope_z': 'ISM330DHCX_GYRO_G_z_mean',
-            'microphone': 'IMP23ABSU_MIC_MIC_mean'
+            'gyro_x': 'ISM330DHCX_GYRO_G_x_mean',
+            'gyro_y': 'ISM330DHCX_GYRO_G_y_mean',
+            'gyro_z': 'ISM330DHCX_GYRO_G_z_mean',
+            'gyroscope_x_mean': 'ISM330DHCX_GYRO_G_x_mean',
+            'gyroscope_y_mean': 'ISM330DHCX_GYRO_G_y_mean',
+            'gyroscope_z_mean': 'ISM330DHCX_GYRO_G_z_mean',
+            'gyro_x_mean': 'ISM330DHCX_GYRO_G_x_mean',
+            'gyro_y_mean': 'ISM330DHCX_GYRO_G_y_mean',
+            'gyro_z_mean': 'ISM330DHCX_GYRO_G_z_mean',
+            
+            # Microphone sensors
+            'microphone': 'IMP23ABSU_MIC_MIC_mean',
+            'mic': 'IMP23ABSU_MIC_MIC_mean',
+            'microphone_mean': 'IMP23ABSU_MIC_MIC_mean',
+            'mic_mean': 'IMP23ABSU_MIC_MIC_mean',
+            
+            # Magnetometer sensors
+            'magnetometer': 'IIS2MDC_MAG_M_x_mean',
+            'mag': 'IIS2MDC_MAG_M_x_mean',
+            'magnetometer_x': 'IIS2MDC_MAG_M_x_mean',
+            'magnetometer_y': 'IIS2MDC_MAG_M_y_mean',
+            'magnetometer_z': 'IIS2MDC_MAG_M_z_mean',
+            'mag_x': 'IIS2MDC_MAG_M_x_mean',
+            'mag_y': 'IIS2MDC_MAG_M_y_mean',
+            'mag_z': 'IIS2MDC_MAG_M_z_mean',
+            'magnetometer_x_mean': 'IIS2MDC_MAG_M_x_mean',
+            'magnetometer_y_mean': 'IIS2MDC_MAG_M_y_mean',
+            'magnetometer_z_mean': 'IIS2MDC_MAG_M_x_mean',
+            'mag_x_mean': 'IIS2MDC_MAG_M_x_mean',
+            'mag_y_mean': 'IIS2MDC_MAG_M_y_mean',
+            'mag_z_mean': 'IIS2MDC_MAG_M_z_mean'
         }
         
-        return common_mappings.get(sensor_name, sensor_name)
+        # Check if we have a direct mapping
+        if sensor_name in common_mappings:
+            return common_mappings[sensor_name]
+        
+        # Try partial matching for more flexible mapping
+        sensor_lower = sensor_name.lower()
+        for key, value in common_mappings.items():
+            if sensor_lower in key.lower() or key.lower() in sensor_lower:
+                return value
+        
+        # If still no match, return the original name (will cause validation to fail)
+        return sensor_name
     
     def _get_stub_statistic(self, stat: str, column: str, filters: Optional[Dict] = None, 
                        group_by: Optional[str] = None) -> Dict[str, Any]:
@@ -1103,7 +1187,8 @@ class MLInterface:
                     'message': 'No data loaded for plotting',
                     'data_source': 'No data',
                     'available_sensors': self.available_sensors,
-                    'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases})
+                    'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases}),
+                    'plot_ready': False
                 }
             # Apply filters if specified
             data = self.mock_data.copy()
@@ -1115,16 +1200,60 @@ class MLInterface:
                     'status': 'error',
                     'message': f'No data found for the specified filters',
                     'data_source': 'Mock data',
-                    'available_sensors': self.available_sensors
+                    'available_sensors': self.available_sensors,
+                    'plot_ready': False
                 }
             
             # Map features to actual column names
             target_features = []
             if features:
                 for feature in features:
+                    # First try direct mapping
                     mapped_feature = self._map_sensor_to_column(feature)
                     if mapped_feature in data.columns:
                         target_features.append(mapped_feature)
+                        continue
+                    
+                    # If direct mapping failed, try vendor + measurement combination
+                    # Check if this feature looks like a vendor code
+                    if re.match(r"^[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*$", feature):
+                        # This is a vendor code, try to find measurement in other features
+                        for other_feature in features:
+                            if other_feature != feature and not re.match(r"^[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*$", other_feature):
+                                # Try vendor + measurement combination
+                                combined_mapping = self._map_vendor_measurement(feature, other_feature)
+                                if combined_mapping and combined_mapping in data.columns:
+                                    target_features.append(combined_mapping)
+                                    break
+                        else:
+                            # No measurement found, try to infer from context
+                            # BUT only if the user's request actually mentions a measurement
+                            # Don't assume measurements for vendor-only requests
+                            if any(word in ' '.join(features).lower() for word in ['temp', 'temperature']):
+                                combined_mapping = self._map_vendor_measurement(feature, 'temp')
+                                if combined_mapping and combined_mapping in data.columns:
+                                    target_features.append(combined_mapping)
+                                    continue
+                            # For humidity-related vendor codes, assume humidity
+                            elif any(word in ' '.join(features).lower() for word in ['hum', 'humidity']):
+                                combined_mapping = self._map_vendor_measurement(feature, 'hum')
+                                if combined_mapping and combined_mapping in data.columns:
+                                    target_features.append(combined_mapping)
+                                    continue
+                            # If no measurement mentioned, try to find any column that contains the vendor code
+                            else:
+                                matching_cols = [col for col in data.columns if feature in col]
+                                if matching_cols:
+                                    target_features.append(matching_cols[0])
+                                    continue
+                    
+                    # If still no match, try the original mapping
+                    if mapped_feature not in target_features:
+                        # Try to find any column that contains the feature name
+                        matching_cols = [col for col in data.columns if feature.lower() in col.lower()]
+                        if matching_cols:
+                            target_features.append(matching_cols[0])
+                
                 # If user specified features but none matched, fail with guidance
                 if len(target_features) == 0:
                     return {
@@ -1134,7 +1263,8 @@ class MLInterface:
                         'available_features_sample': [c for c in data.columns if c not in ['label', 'sample']][:10],
                         'available_sensors': self.available_sensors,
                         'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases}),
-                        'data_source': 'Mock data'
+                        'data_source': 'Mock data',
+                        'plot_ready': False
                     }
             
             if not target_features:
@@ -1153,7 +1283,10 @@ class MLInterface:
                     'status': 'error',
                     'message': f'Unsupported plot type: {plot_type}',
                     'supported_plot_types': sorted({a for v in self.supported_plots.values() for a in v}),
-                    'data_source': 'Mock data'
+                    'available_sensors': self.available_sensors,
+                    'available_features_sample': [c for c in data.columns if c not in ['label', 'sample']][:10],
+                    'data_source': 'Mock data',
+                    'plot_ready': False
                 }
             
             # Prepare plot data based on type
@@ -1193,7 +1326,8 @@ class MLInterface:
                         'status': 'error',
                         'message': 'Scatter plot requires at least 2 features',
                         'data_source': 'Mock data',
-                        'available_features_sample': target_features[:10]
+                        'available_features_sample': target_features[:10],
+                        'plot_ready': False
                     }
                     
             elif normalized == 'correlation':
@@ -1218,11 +1352,23 @@ class MLInterface:
                         'ylabel': feature
                     }
                     
+            elif normalized == 'timeseries':
+                # Implement timeseries plot logic
+                plot_data = {}
+                for feature in target_features:
+                    plot_data[feature] = {
+                        'class_data': data.groupby('label')[feature].apply(list).to_dict(),
+                        'title': f'{feature} Time Series',
+                        'xlabel': 'Time',
+                        'ylabel': feature
+                    }
+            
             else:
                 return {
                     'status': 'error',
                     'message': f'Unsupported plot type: {plot_type}',
-                    'data_source': 'Mock data'
+                    'data_source': 'Mock data',
+                    'plot_ready': False
                 }
             
             return {
@@ -1232,14 +1378,16 @@ class MLInterface:
                 'features': target_features,
                 'filters': filters,
                 'sample_count': len(data),
-                'data_source': 'Mock data analysis'
+                'data_source': 'Mock data analysis',
+                'plot_ready': True
             }
             
         except Exception as e:
             return {
                 'status': 'error',
                 'message': f'Error preparing plot data: {str(e)}',
-                'data_source': 'Mock data'
+                'data_source': 'Mock data',
+                'plot_ready': False
             }
     
     def create_plot(self, plot_request: str) -> Dict[str, Any]:
@@ -1473,11 +1621,69 @@ class MLInterface:
                         pc.set_facecolor(color)
                         pc.set_alpha(0.7)
                 
+            elif plot_type.lower() in ['timeseries', 'time series', 'time plot', 'temporal']:
+                # For time-series plots, try to use the ML plotter for vendor-aware dataset plotting
+                # This ensures vendor filtering works correctly
+                try:
+                    from .ml_plotter import PlottingEngine as MLPlotter
+                    ml_plotter = MLPlotter()
+                    
+                    # Check if this is a vendor-specific request that needs dataset access
+                    request_text = str(plot_data)  # Use plot_data as proxy for request context
+                    vendor_pattern = r'\b(HTS221|STTS751|LPS22HH|IIS3DWB|ISM330DHCX|IIS2MDC|IMP23ABSU|IMP34DT05)\b'
+                    if re.search(vendor_pattern, request_text, flags=re.I):
+                        # Use ML plotter for vendor-aware dataset plotting
+                        fig = ml_plotter._plot_time_series_from_dataset(request_text)
+                        if fig:
+                            # Save the plot to a temporary file
+                            import tempfile
+                            temp_dir = tempfile.gettempdir()
+                            plot_filename = f"plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                            plot_path = os.path.join(temp_dir, plot_filename)
+                            
+                            fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+                            
+                            return {
+                                'status': 'success',
+                                'plot_path': plot_path,
+                                'figure': fig,
+                                'plot_type': plot_type,
+                                'message': f'Plot created successfully: {plot_type}',
+                                'data_source': 'ML Plotter with dataset data',
+                                'plot_ready': True
+                            }
+                except Exception as e:
+                    # Fall back to mock data plotting if ML plotter fails
+                    logging.warning(f"ML plotter failed for time-series, falling back to mock data: {e}")
+                
+                # Fallback to mock data plotting logic
+                fig, axes = plt.subplots(1, len(plot_data), figsize=(12, 6))
+                if len(plot_data) == 1:
+                    axes = [axes]
+                
+                for i, (feature, data) in enumerate(plot_data.items()):
+                    class_names = list(data['class_data'].keys())
+                    class_values = list(data['class_data'].values())
+                    
+                    # Create line plot for each class
+                    for j, (class_name, values) in enumerate(zip(class_names, class_values)):
+                        if values:  # Check if values exist
+                            x_values = range(len(values))
+                            axes[i].plot(x_values, values, 'o-', label=class_name, alpha=0.7, linewidth=2, markersize=4)
+                    
+                    axes[i].set_title(data['title'])
+                    axes[i].set_xlabel(data['xlabel'])
+                    axes[i].set_ylabel(data['ylabel'])
+                    axes[i].legend()
+                    axes[i].grid(True, alpha=0.3)
+            
             else:
                 return {
                     'status': 'error',
                     'message': f'Unsupported plot type for figure creation: {plot_type}',
-                    'data_source': 'Plot creation'
+                    'supported_plot_types': sorted({alias for aliases in self.supported_plots.values() for alias in aliases}),
+                    'data_source': 'Plot creation',
+                    'plot_ready': False
                 }
             
             # Save the plot to a temporary file
@@ -1494,7 +1700,8 @@ class MLInterface:
                 'figure': fig,
                 'plot_type': plot_type,
                 'message': f'Plot created successfully: {plot_type}',
-                'data_source': 'Matplotlib with mock data'
+                'data_source': 'Matplotlib with mock data',
+                'plot_ready': True
             }
             
         except Exception as e:
@@ -1502,7 +1709,8 @@ class MLInterface:
             return {
                 'status': 'error',
                 'message': f'Error creating plot: {str(e)}',
-                'data_source': 'Plot creation error'
+                'data_source': 'Plot creation error',
+                'plot_ready': False
             }
 
     def get_data_quality_summary(self) -> Dict[str, Any]:
@@ -1722,6 +1930,68 @@ class MLInterface:
                 'cleaned_data': data.copy() if data is not None else None
             }
 
+    def _map_vendor_measurement(self, vendor: str, measurement: str) -> str:
+        """Map vendor + measurement combination to actual column names."""
+        # Common vendor + measurement mappings
+        vendor_measurement_mappings = {
+            # HTS221 combinations
+            ('HTS221', 'temp'): 'HTS221_TEMP_TEMP_mean',
+            ('HTS221', 'temperature'): 'HTS221_TEMP_TEMP_mean',
+            ('HTS221', 'hum'): 'HTS221_HUM_HUM_mean',
+            ('HTS221', 'humidity'): 'HTS221_HUM_HUM_mean',
+            
+            # LPS22HH combinations
+            ('LPS22HH', 'press'): 'LPS22HH_PRESS_PRESS_mean',
+            ('LPS22HH', 'pressure'): 'LPS22HH_PRESS_PRESS_mean',
+            ('LPS22HH', 'temp'): 'LPS22HH_TEMP_TEMP_mean',
+            ('LPS22HH', 'temperature'): 'LPS22HH_TEMP_TEMP_mean',
+            
+            # STTS751 combinations
+            ('STTS751', 'temp'): 'STTS751_TEMP_TEMP_mean',
+            ('STTS751', 'temperature'): 'STTS751_TEMP_TEMP_mean',
+            
+            # IIS3DWB combinations
+            ('IIS3DWB', 'acc'): 'IIS3DWB_ACC_A_x_mean',
+            ('IIS3DWB', 'acceleration'): 'IIS3DWB_ACC_A_x_mean',
+            ('IIS3DWB', 'acc_x'): 'IIS3DWB_ACC_A_x_mean',
+            ('IIS3DWB', 'acc_y'): 'IIS3DWB_ACC_A_y_mean',
+            ('IIS3DWB', 'acc_z'): 'IIS3DWB_ACC_A_z_mean',
+            
+            # ISM330DHCX combinations
+            ('ISM330DHCX', 'gyro'): 'ISM330DHCX_GYRO_G_x_mean',
+            ('ISM330DHCX', 'gyroscope'): 'ISM330DHCX_GYRO_G_x_mean',
+            ('ISM330DHCX', 'gyro_x'): 'ISM330DHCX_GYRO_G_x_mean',
+            ('ISM330DHCX', 'gyro_y'): 'ISM330DHCX_GYRO_G_y_mean',
+            ('ISM330DHCX', 'gyro_z'): 'ISM330DHCX_GYRO_G_z_mean',
+            
+            # IMP23ABSU combinations
+            ('IMP23ABSU', 'mic'): 'IMP23ABSU_MIC_MIC_mean',
+            ('IMP23ABSU', 'microphone'): 'IMP23ABSU_MIC_MIC_mean',
+            
+            # IMP34DT05 combinations
+            ('IMP34DT05', 'mic'): 'IMP34DT05_MIC_MIC_mean',
+            ('IMP34DT05', 'microphone'): 'IMP34DT05_MIC_MIC_mean',
+            
+            # IIS2MDC combinations
+            ('IIS2MDC', 'mag'): 'IIS2MDC_MAG_M_x_mean',
+            ('IIS2MDC', 'magnetometer'): 'IIS2MDC_MAG_M_x_mean',
+            ('IIS2MDC', 'mag_x'): 'IIS2MDC_MAG_M_x_mean',
+            ('IIS2MDC', 'mag_y'): 'IIS2MDC_MAG_M_y_mean',
+            ('IIS2MDC', 'mag_z'): 'IIS2MDC_MAG_M_z_mean',
+        }
+        
+        # Try exact match first
+        key = (vendor.upper(), measurement.lower())
+        if key in vendor_measurement_mappings:
+            return vendor_measurement_mappings[key]
+        
+        # Try partial matches
+        for (v, m), column in vendor_measurement_mappings.items():
+            if vendor.upper() in v.upper() and measurement.lower() in m.lower():
+                return column
+        
+        # If no match found, return None to indicate mapping failure
+        return None
+
 # Global instance
 ml_interface = MLInterface()
-
