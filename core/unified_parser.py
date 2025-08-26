@@ -21,6 +21,7 @@ class CommandType(Enum):
     FEATURE_ANALYSIS = "feature_analysis"
     CLASSIFICATION = "classification"
     CORRELATION = "correlation"
+    FREQUENCY = "frequency"
     UNKNOWN = "unknown"
 
 class StatisticType(Enum):
@@ -36,7 +37,7 @@ class StatisticType(Enum):
     IQR = "iqr"
     COUNT = "count"
     SUM = "sum"
-
+    FREQUENCY = "frequency"
 class PlotType(Enum):
     """Types of plots available"""
     LINE_GRAPH = "line_graph"
@@ -127,7 +128,12 @@ class UnifiedParser:
             StatisticType.COUNT: [
                 r'\b(?:what is the |get |show |calculate |give me |find the )?count\b',
                 r'\bnumber of\b', r'\btotal\b'
+            ],
+            StatisticType.FREQUENCY: [
+                r'\b(?:what is the |get |show |calculate |give me |find the )?frequency\b',
+                r'\b(?:fft|spectrum|oscillation|vibration)\b'
             ]
+            
         }
         
         # Plot patterns
@@ -154,6 +160,14 @@ class UnifiedParser:
             PlotType.HEATMAP: [
                 r'\b(?:show |create |generate |make |display )?(?:a )?heatmap\b',
                 r'\b(?:heat map|heat-map)\b'
+            ],
+            PlotType.TIMESERIES: [
+                r'\b(?:show |create |generate |make |display )?(?:a )?time(?: series)?(?: plot)?\b',
+                r'\b(?:time plot|timeseries|temporal plot|temporal)\b'
+            ],
+            PlotType.FREQUENCY: [
+                r'\b(?:show |create |generate |make |display )?(?:a )?frequency(?: plot)?\b',
+                r'\b(?:frequency plot|frequency distribution)\b'
             ]
         }
         
@@ -185,6 +199,9 @@ class UnifiedParser:
             CommandType.FEATURE_ANALYSIS: [
                 r'\b(?:feature|sensor|characteristic)\b',
                 r'\b(?:analysis|examination|investigation)\b'
+            ],
+            CommandType.FREQUENCY: [
+                r'\b(?:frequency|fft|spectrum|oscillation|vibration)\b'
             ]
         }
         
