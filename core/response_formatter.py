@@ -152,7 +152,7 @@ class ResponseFormatter:
                     try:
                         main = formatted_response.get('main_response', '')
                         if isinstance(main, str) and main:
-                            # Remove simple parenthetical segments like (OK vs KO), (ANOVA F-test), etc.
+                            # Remove simple parenthetical segments like (OK vs KO)
                             cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
                             formatted_response['main_response'] = cleaned
                     except Exception:
