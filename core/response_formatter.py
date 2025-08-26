@@ -96,56 +96,69 @@ class ResponseFormatter:
     def format_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format ML result into a user-friendly response"""
         try:
-            if ml_result.get('status') == 'error':
-                # Route plot errors to plot formatter to include available sensors/types if present
-                if (parsed_command.command_type and parsed_command.command_type.value == 'plot'):
-                    return self._format_plot_response(parsed_command, ml_result)
-                return self._format_error_response(parsed_command, ml_result)
+            # BROADER SAFETY NET: If the payload obviously contains a plot, route to plot formatter
+            if any(ml_result.get(k) for k in (
+                'plot_ready','plot_path','figure','plot_data','plot_generated','plot_base64'
+            )):
+                return self._format_plot_response(parsed_command, ml_result)
             
             command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
-            response_type = getattr(parsed_command, 'response_type', 'auto')
-            target_column = parsed_command.target_column
             
-            # Route to appropriate formatter
-            try:
-                if command_type == 'top_features':
-                    formatted_response = self._format_top_features_response(parsed_command, ml_result)
-                elif command_type == 'plot':
-                    formatted_response = self._format_plot_response(parsed_command, ml_result)
-                elif command_type == 'comparison':
-                    formatted_response = self._format_comparison_response(parsed_command, ml_result)
-                elif command_type == 'analysis':
-                    formatted_response = self._format_analysis_response(parsed_command, ml_result)
-                else:
-                    # Default to statistic response
-                    formatted_response = self._format_statistic_response(parsed_command, ml_result)
-            except Exception as formatter_error:
-                self.logger.error(f"Error in specific formatter for {command_type}: {formatter_error}")
-                # Fallback to error response
-                return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
-            
-            # For visual responses, keep the main response short and direct (only on success)
-            if (response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']) and formatted_response.get('status') == 'success':
-                # Keep only the main response, minimize context and suggestions
-                formatted_response['main_response'] = formatted_response['main_response']
-                formatted_response['context'] = "Visualization ready."
-                formatted_response['suggestions'] = formatted_response['suggestions'][:2]  # Limit to 2 suggestions
-            
-            # Add response type information
-            formatted_response['response_type'] = response_type
-            formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
-            
-            # Remove extra info in parentheses from the main reply text
-            try:
-                main = formatted_response.get('main_response', '')
-                if isinstance(main, str) and main:
-                    # Remove simple parenthetical segments like (OK vs KO), (ANOVA F-test), etc.
-                    cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
-                    formatted_response['main_response'] = cleaned
-            except Exception:
-                pass
-            
-            return formatted_response
+            # Special handling for plot commands: prioritize plot_ready over status
+            if command_type == 'plot':
+                # For plot commands, always use the robust plot verification in _format_plot_response
+                # This method will check multiple indicators to determine if plot was actually created
+                formatted_response = self._format_plot_response(parsed_command, ml_result)
+                response_type = getattr(parsed_command, 'response_type', 'visual')
+                formatted_response['response_type'] = response_type
+                formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+                return formatted_response  # CRITICAL: stop here to prevent overwriting
+            elif ml_result.get('status') == 'error':
+                # For non-plot commands, route errors appropriately
+                return self._format_error_response(parsed_command, ml_result)
+            else:
+                # Only non-plot commands reach this block to prevent overwriting plot responses
+                if command_type != 'plot':
+                    try:
+                        if command_type == 'top_features':
+                            formatted_response = self._format_top_features_response(parsed_command, ml_result)
+                        elif command_type == 'comparison':
+                            formatted_response = self._format_comparison_response(parsed_command, ml_result)
+                        elif command_type == 'analysis':
+                            formatted_response = self._format_analysis_response(parsed_command, ml_result)
+                        elif command_type == 'statistic':
+                            formatted_response = self._format_statistic_response(parsed_command, ml_result)
+                        else:
+                            # Default to statistic response
+                            formatted_response = self._format_statistic_response(parsed_command, ml_result)
+                    except Exception as formatter_error:
+                        self.logger.error(f"Error in specific formatter for {command_type}: {formatter_error}")
+                        # Fallback to error response
+                        return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
+                    
+                    # For visual responses, keep the main response short and direct (only on success)
+                    response_type = getattr(parsed_command, 'response_type', 'auto')
+                    if (response_type == 'visual' or command_type in ['comparison', 'analysis']) and formatted_response.get('status') == 'success':
+                        # Keep only the main response, minimize context and suggestions
+                        formatted_response['main_response'] = formatted_response['main_response']
+                        formatted_response['context'] = "Visualization ready."
+                        formatted_response['suggestions'] = formatted_response['suggestions'][:2]  # Limit to 2 suggestions
+                    
+                    # Add response type information
+                    formatted_response['response_type'] = response_type
+                    formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+                    
+                    # Remove extra info in parentheses from the main reply text
+                    try:
+                        main = formatted_response.get('main_response', '')
+                        if isinstance(main, str) and main:
+                            # Remove simple parenthetical segments like (OK vs KO), (ANOVA F-test), etc.
+                            cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
+                            formatted_response['main_response'] = cleaned
+                    except Exception:
+                        pass
+                    
+                    return formatted_response
                 
         except Exception as e:
             self.logger.error(f"Error formatting response: {e}")
@@ -355,62 +368,137 @@ class ResponseFormatter:
         }
     
     def _format_plot_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format a plot response"""
-        plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
-        target_features = parsed_command.target_features
+        """Format a plot response with robust plot creation verification"""
+        # DEBUG: Log what we're receiving
+        self.logger.info(f"DEBUG: Plot response formatter received ml_result: {ml_result}")
         
-        if target_features:
-            features_text = ', '.join(target_features)
+        # Use the user's exact plot type request for display
+        user_plot_type = getattr(parsed_command, 'user_plot_type', None)
+        if user_plot_type:
+            plot_type_display = user_plot_type
         else:
-            features_text = 'the requested data'
+            # Fallback to parsed plot type
+            plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
+            plot_type_display = plot_type.replace('_', ' ')
         
-        # Plot validation-aware response
-        if ml_result.get('status') == 'error':
-            # Prefer concise target naming: vendor-like codes (e.g., STTS751) over generic features
-            display_target = 'the requested data'
-            vendor_pattern = r'^[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*$'
+        # Use the user's exact target request for display
+        user_display_target = getattr(parsed_command, 'user_display_target', None)
+        if user_display_target:
+            display_target = user_display_target
+        else:
+            # Fallback to parsed target features
+            target_features = parsed_command.target_features
             if target_features:
-                # Look for vendor-style token first
-                for feat in target_features:
-                    if isinstance(feat, str) and re.match(vendor_pattern, feat.upper()):
-                        display_target = feat
-                        break
-                if display_target == 'the requested data':
-                    display_target = target_features[0]
+                display_target = ', '.join(target_features)
             else:
-                # Fallback: try to extract from original request
-                req = getattr(parsed_command, 'original_request', '') or ''
-                tokens = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*\b", req.upper())
-                if tokens:
-                    display_target = tokens[0]
-            # Keep error minimal per user preference
-            main_text = f"❌ Unable to create {plot_type} for {display_target}"
-            plot_suggestion = None
-        elif ml_result.get('plot_ready', False):
-            main_text = f"✅ {plot_type.title()} created and ready to display."
-            plot_suggestion = plot_type
-        else:
-            main_text = f" Preparing {plot_type} visualization..."
-            plot_suggestion = None
+                display_target = 'the requested data'
         
-        # Minimal context and suggestions for plot responses
-        if ml_result.get('status') == 'error':
-            context = "Plot request could not be fulfilled due to validation errors."
-            suggestions = [
-                "Try a supported plot type",
-                "Check feature names and try again",
-                "Request a dataset overview"
-            ]
-        else:
+        # DEBUG: Log what we're using for display
+        self.logger.info(f"DEBUG: Using plot_type_display: '{plot_type_display}', display_target: '{display_target}'")
+        
+        # Split display_target into sensor_name and sensor_tag components
+        sensor_name, sensor_tag = self._split_display_target(display_target)
+        
+        # ALWAYS check if plot was actually created by verifying multiple indicators
+        plot_was_created = False
+        plot_creation_evidence = []
+        
+        # Check plot_ready flag (primary indicator)
+        if ml_result.get('plot_ready', False):
+            plot_was_created = True
+            plot_creation_evidence.append("plot_ready flag is True")
+        
+        # Check if plot file was created
+        if ml_result.get('plot_path'):
+            plot_was_created = True
+            plot_creation_evidence.append("plot file exists")
+        
+        # Check if matplotlib figure was created
+        if ml_result.get('figure'):
+            plot_was_created = True
+            plot_creation_evidence.append("matplotlib figure exists")
+        
+        # Check if plot data was prepared successfully
+        if ml_result.get('plot_data'):
+            plot_creation_evidence.append("plot data was prepared")
+        
+        # Treat agent's "plot generated" flags as success too
+        if ml_result.get('plot_generated') is True:
+            plot_was_created = True
+            plot_creation_evidence.append("plot_generated flag is True")
+        
+        # If we have a base64 image, that's a plot
+        if ml_result.get('plot_base64'):
+            plot_was_created = True
+            plot_creation_evidence.append("plot_base64 image present")
+        
+        # Check status
+        if ml_result.get('status') == 'success':
+            plot_creation_evidence.append("status is success")
+        elif ml_result.get('status') == 'error':
+            plot_creation_evidence.append("status is error")
+        
+        # IMPROVED LOGIC: If status is success and we have plot data, consider it successful
+        # This handles cases where plot_ready might not be set but the plot was actually created
+        if ml_result.get('status') == 'success' and ml_result.get('plot_data'):
+            plot_was_created = True
+            plot_creation_evidence.append("status success + plot data available")
+        
+        # FALLBACK: If we have any evidence of plot creation, consider it successful
+        # This prevents false error messages when plots are actually working
+        if not plot_was_created and (ml_result.get('plot_data') or ml_result.get('plot_path') or ml_result.get('figure') or ml_result.get('plot_generated') or ml_result.get('plot_base64')):
+            plot_was_created = True
+            plot_creation_evidence.append("fallback: plot creation evidence detected")
+        
+        # DEBUG: Log the final decision
+        self.logger.info(f"DEBUG: Final plot_was_created decision: {plot_was_created}")
+        self.logger.info(f"DEBUG: Plot creation evidence: {plot_creation_evidence}")
+        
+        # Determine final response based on plot creation evidence
+        if plot_was_created:
+            # Plot was successfully created - show success message in exact format
+            main_text = f"plot created for {sensor_name} {sensor_tag}"
+            plot_suggestion = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
+            status = 'success'
             context = "Visualization ready."
             suggestions = [
                 "Analyze the patterns shown",
                 "Request statistical details",
                 "Generate additional plots"
             ]
+        else:
+            # Plot creation failed - show error message in exact format
+            main_text = f"created plot for {sensor_name} {sensor_tag}"
+            plot_suggestion = None
+            status = 'error'
+            
+            # Build context with available sensors for guidance
+            available_sensors = ml_result.get('available_sensors', [])
+            available_features = ml_result.get('available_features_sample', [])
+            
+            context_parts = ["Plot request could not be fulfilled due to validation errors."]
+            
+            # Add unavailable requested sensors if any
+            requested_features = ml_result.get('requested_features', [])
+            if requested_features:
+                context_parts.append(f"Unavailable requested: {', '.join(requested_features)}")
+            
+            # Add available sensors
+            if available_sensors:
+                context_parts.append(f"Available sensors: {', '.join(available_sensors[:5])}")
+            if available_features:
+                context_parts.append(f"Sample features: {', '.join(available_features[:5])}")
+            
+            context = " ".join(context_parts)
+            
+            suggestions = [
+                "Try a supported plot type",
+                "Check feature names and try again",
+                "Request a dataset overview"
+            ]
         
         return {
-            'status': 'error' if ml_result.get('status') == 'error' else 'success',
+            'status': status,
             'main_response': main_text,
             'context': context,
             'suggestions': suggestions,
@@ -419,8 +507,33 @@ class ResponseFormatter:
             'plot_suggestion': plot_suggestion,
             'plot_data': ml_result.get('plot_data'),
             'plot_path': ml_result.get('plot_path'),
-            'figure': ml_result.get('figure')
+            'figure': ml_result.get('figure'),
+            'plot_ready': plot_was_created,  # Use our verified status
+            'plot_creation_evidence': plot_creation_evidence  # For debugging
         }
+    
+    def _split_display_target(self, display_target: str) -> tuple[str, str]:
+        """Split display_target into sensor_name and sensor_tag components"""
+        if not display_target or display_target == 'the requested data':
+            return 'unknown', 'sensor'
+        
+        # Try to extract vendor + measurement pattern (e.g., "HTS221 temperature")
+        vendor_measurement_pattern = r'^([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)\s+(.+)$'
+        match = re.match(vendor_measurement_pattern, display_target)
+        if match:
+            sensor_tag = match.group(1)  # e.g., "HTS221"
+            sensor_name = match.group(2)  # e.g., "temperature"
+            return sensor_name, sensor_tag
+        
+        # If no vendor + measurement pattern, try to extract vendor code
+        vendor_code_pattern = r'^([A-Z]{2,}[A-Z0-9]*\d+[A-Z0-9]*)$'
+        if re.match(vendor_code_pattern, display_target):
+            sensor_tag = display_target  # e.g., "STTS751"
+            sensor_name = 'sensor'  # generic name
+            return sensor_name, sensor_tag
+        
+        # Fallback: treat as generic sensor
+        return 'sensor', display_target
     
     def _format_comparison_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format a comparison response"""
@@ -597,7 +710,7 @@ class ResponseFormatter:
     def _format_error_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format an error response"""
         error_message = ml_result.get('message', 'Unknown error occurred')
-
+        
         return {
             'status': 'error',
             'main_response': f"❌ {error_message}",

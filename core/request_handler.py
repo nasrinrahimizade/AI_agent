@@ -10,6 +10,10 @@ from typing import Dict, List, Any, Optional
 from .unified_parser import parse_command, UnifiedParsedCommand
 from .ml_interface import ml_interface
 from .response_formatter import format_response, format_table_data
+import re
+import tempfile
+from datetime import datetime
+import os
 
 class RequestHandler:
     """Main handler for processing user requests through the ML pipeline"""
@@ -107,16 +111,66 @@ class RequestHandler:
                 # Handle plot requests
                 plot_type = parsed_command.plot_type.value if parsed_command.plot_type else 'line_graph'
                 features = parsed_command.target_features if parsed_command.target_features else [target_column]
+                
                 # Pre-validate vendor + measurement against dataset catalog
                 pre_validation = ml_interface.validate_vendor_measurement(parsed_command.original_request, features)
                 if pre_validation and pre_validation.get('status') == 'error':
-                    # Return a concise, user-friendly error
+                    # Return a concise, user-friendly error with available sensors
                     return {
                         'status': 'error',
                         'message': pre_validation.get('message', 'Invalid plot request'),
-                        'data_source': pre_validation.get('data_source', 'dataset')
+                        'data_source': pre_validation.get('data_source', 'dataset'),
+                        'available_sensors': ml_interface.available_sensors,
+                        'plot_ready': False
                     }
                 
+                # Check if this is a time-series request that needs vendor-aware dataset plotting
+                if plot_type.lower() in ['timeseries', 'time series', 'time plot', 'temporal']:
+                    # Check if the request contains vendor specifications
+                    vendor_pattern = r'\b(HTS221|STTS751|LPS22HH|IIS3DWB|ISM330DHCX|IIS2MDC|IMP23ABSU|IMP34DT05)\b'
+                    if re.search(vendor_pattern, parsed_command.original_request, flags=re.I):
+                        # Use ML plotter for vendor-aware dataset plotting
+                        try:
+                            from .ml_plotter import PlottingEngine as MLPlotter
+                            ml_plotter = MLPlotter()
+                            
+                            # Create the plot using the ML plotter
+                            fig = ml_plotter._plot_time_series_from_dataset(parsed_command.original_request)
+                            
+                            if fig:
+                                # Save the plot to a temporary file
+                                temp_dir = tempfile.gettempdir()
+                                plot_filename = f"plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                                plot_path = os.path.join(temp_dir, plot_filename)
+                                
+                                fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+                                
+                                return {
+                                    'status': 'success',
+                                    'plot_type': plot_type,
+                                    'plot_data': {'vendor_aware_dataset_plot': True},  # Indicate this came from dataset
+                                    'plot_path': plot_path,
+                                    'figure': fig,
+                                    'features': features,
+                                    'filters': {'class': class_filters} if class_filters else {},
+                                    'sample_count': 0,  # Dataset plots don't have sample counts from feature matrix
+                                    'data_source': 'ML Plotter with dataset data',
+                                    'plot_ready': True
+                                }
+                            else:
+                                # ML plotter failed to create plot
+                                return {
+                                    'status': 'error',
+                                    'message': 'Failed to create time-series plot from dataset',
+                                    'data_source': 'ML Plotter',
+                                    'available_sensors': ml_interface.available_sensors,
+                                    'plot_ready': False
+                                }
+                        except Exception as e:
+                            # Fall back to regular ML interface if ML plotter fails
+                            self.logger.warning(f"ML plotter failed for time-series, falling back to ML interface: {e}")
+                
+                # Regular plot flow (for non-time-series or when ML plotter fails)
                 # First get the plot data
                 plot_data_result = ml_interface.get_plot_data(
                     plot_type=plot_type,
@@ -146,8 +200,18 @@ class RequestHandler:
                             'plot_ready': True
                         }
                     else:
+                        # Plot creation failed - explicitly set plot_ready to False
+                        plot_creation_result['plot_ready'] = False
+                        # Ensure error responses include available sensors for better error messages
+                        if 'available_sensors' not in plot_creation_result:
+                            plot_creation_result['available_sensors'] = ml_interface.available_sensors
                         return plot_creation_result
                 else:
+                    # Plot data preparation failed - explicitly set plot_ready to False
+                    plot_data_result['plot_ready'] = False
+                    # Ensure error responses include available sensors for better error messages
+                    if 'available_sensors' not in plot_data_result:
+                        plot_data_result['available_sensors'] = ml_interface.available_sensors
                     return plot_data_result
             
             elif command_type.value == 'comparison':
