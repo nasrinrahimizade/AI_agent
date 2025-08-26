@@ -1260,17 +1260,25 @@ class MLInterface:
                         'ylabel': feature
                     }
                     
-            elif normalized == 'timeseries':
-                # Implement timeseries plot logic
-                plot_data = {}
-                for feature in target_features:
-                    plot_data[feature] = {
-                        'class_data': data.groupby('label')[feature].apply(list).to_dict(),
-                        'title': f'{feature} Time Series',
-                        'xlabel': 'Time',
-                        'ylabel': feature
-                    }
-            
+            # elif normalized == 'timeseries':
+            #     # Implement timeseries plot logic
+            #     plot_data = {}
+            #     for feature in target_features:
+            #         plot_data[feature] = {
+            #             'class_data': data.groupby('label')[feature].apply(list).to_dict(),
+            #             'title': f'{feature} Time Series',
+            #             'xlabel': 'Time',
+            #             'ylabel': feature
+            #         }
+            # elif normalized == 'frequency':
+            #     plot_data = {}
+            #     for feature in target_features:
+            #         plot_data[feature] = {
+            #             'class_data': data.groupby('label')[feature].apply(list).to_dict(),
+            #             'title': f'{feature} Frequency',
+            #             'xlabel': 'Frequency',
+            #             'ylabel': feature
+            #         }
             else:
                 return {
                     'status': 'error',
