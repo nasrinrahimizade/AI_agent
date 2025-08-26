@@ -24,50 +24,63 @@ matplotlib.use('Agg')  # Use non-interactive backend for server environments
 #     logging.warning("ML layer not available, using stub functions")
 
 class MLInterface:
-    def __init__(self, feature_matrix_path: str = "ML/feature_matrix.csv"):
+    def __init__(self, feature_matrix_path: str = None):  # Change default to None
+        print("MLInterface initialized")
         self.feature_matrix_path = feature_matrix_path
         self.ml_agent = None
-        self.initialized = False
         self.mock_data = None
-        
-        if True:
+        self.base_path = None
+
+        # Only try to load data if path is provided and exists
+        if feature_matrix_path and os.path.exists(feature_matrix_path):
             try:
-                # self.ml_agent = StatisticalAIAgent(feature_matrix_path) ##ok
-                self.initialized = True
-                logging.info("ML Interface initialized with StatisticalAIAgent") ##ok
+                self.mock_data = pd.read_csv(self.feature_matrix_path)
+                logging.info(f"Data loaded from {self.feature_matrix_path}")
             except Exception as e:
-                logging.error(f"Failed to initialize ML agent: {e}")
-                self.initialized = False
+                logging.error(f"Failed to load data: {e}")
+                self.mock_data = None
+        else:
+            logging.info("No initial data path provided - waiting for dataset to be loaded")
         
-        # Load mock data for stub functions
-        try:
-            self.mock_data = pd.read_csv(self.feature_matrix_path)
-            logging.info(f"Mock data loaded from {self.feature_matrix_path}")
-        except Exception as e:
-            logging.error(f"Failed to load mock data: {e}")
-            self.mock_data = None
-        
-        # Extract unique sensor types from actual dataset columns
-        self.available_sensors = []
+        # Initialize available sensors based on loaded data or defaults
+        self._initialize_available_sensors()
+        self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
+                                    'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
+
+        # Supported plots (aliases)
+        self.supported_plots = {
+            'histogram': ['histogram', 'hist'],
+            'line': ['line', 'line graph', 'line_graph'],
+            'scatter': ['scatter', 'scatterplot'],
+            'correlation': ['correlation', 'correlation_matrix'],
+            'violin': ['violin', 'violinplot']
+        }
+
+    def _check_data_available(self):
+        """Check if data is loaded and available"""
+        if ml_interface.mock_data is None:
+            return False
+        return True
+    
+    def _initialize_available_sensors(self):
+        """Initialize available sensors list"""
         if self.mock_data is not None:
-            # Get all columns except label and sample
+            # Extract from actual data
             feature_columns = [col for col in self.mock_data.columns if col not in ['label', 'sample']]
-            # Extract unique sensor prefixes
             sensor_prefixes = set()
             for col in feature_columns:
                 if '_' in col:
-                    # Extract sensor name (e.g., 'HTS221_TEMP' from 'HTS221_TEMP_TEMP_mean')
                     parts = col.split('_')
                     if len(parts) >= 2:
                         sensor_prefixes.add(f"{parts[0]}_{parts[1]}")
             self.available_sensors = list(sensor_prefixes)
         else:
-            # Fallback list based on your dataset
+            # Fallback list
             self.available_sensors = ['HTS221_TEMP', 'HTS221_HUM', 'LPS22HH_PRESS', 'IIS3DWB_ACC', 
                                     'ISM330DHCX_ACC', 'ISM330DHCX_GYRO', 'IMP23ABSU_MIC', 'IMP34DT05_MIC']
         
-        
         self.available_classes = ['OK', 'KO', 'KO_HIGH_2mm', 'KO_LOW_2mm', 'KO_LOW_4mm']
+
         self.statistical_measures = ['mean', 'median', 'mode', 'std', 'variance', 'min', 'max', 
                                    'range', 'iqr', 'skewness', 'kurtosis', 'count', 'sum']
         # Supported plots (aliases)
@@ -80,6 +93,26 @@ class MLInterface:
             'timeseries': ['timeseries', 'time series', 'time plot', 'temporal']
         }
 
+    def update_data(self, feature_matrix_path: str, dataframe: pd.DataFrame = None, base_path: str = None):
+        """Update the data path and reload data"""
+        print("updating data for ml interface")
+        self.feature_matrix_path = feature_matrix_path
+        self.base_path = base_path
+
+        if dataframe is not None:
+            self.mock_data = dataframe
+        else:
+            try:
+                self.mock_data = pd.read_csv(feature_matrix_path)
+            except Exception as e:
+                logging.error(f"Failed to load new data: {e}")
+                return False
+        
+        self._initialize_available_sensors()
+        logging.info(f"Data updated successfully from {feature_matrix_path}")
+        logging.info(f"Base path set to: {base_path}")
+        return True
+    
     def validate_vendor_measurement(self, text: str, features: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """Validate if vendor + measurement requested exists in dataset catalog.
         Returns an error dict if invalid, otherwise None.
@@ -126,6 +159,14 @@ class MLInterface:
     def get_statistic(self, stat: str, column: str, filters: Optional[Dict] = None,
                    group_by: Optional[str] = None) -> Dict[str, Any]:
         """Get statistical measure for a specific column with optional filtering and grouping"""
+        
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             # Map sensor names to actual column names
             target_column = self._map_sensor_to_column(column)
@@ -261,6 +302,14 @@ class MLInterface:
     
     def get_top_features(self, n: int = 3, classes: List[str] = None) -> Dict[str, Any]:
         """Get the top N most discriminative features between classes"""
+        
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             if classes is None:
                 classes = ['OK', 'KO']
@@ -435,6 +484,13 @@ class MLInterface:
         Calculates multiple statistical measures and ranks features by separation power (OK vs KO),
         optionally augmenting with model-based feature importance. Falls back to get_top_features on error.
         """
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             # Lazy import to avoid hard dependency at startup
             from ML.statistical_engine import StatisticalAnalysisEngine
@@ -651,6 +707,14 @@ class MLInterface:
     def _get_stub_statistic(self, stat: str, column: str, filters: Optional[Dict] = None, 
                        group_by: Optional[str] = None) -> Dict[str, Any]:
         """Stub function that returns realistic mock data based on the CSV."""
+        
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         if self.mock_data is None:
             return self._get_fallback_stub_statistic(stat, column, filters, group_by)
         
@@ -767,6 +831,13 @@ class MLInterface:
 
     def get_dataset_overview(self) -> Dict[str, Any]:
         """Get overview of the dataset."""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         if self.mock_data is not None:
             try:
                 # More robust feature extraction
@@ -877,6 +948,13 @@ class MLInterface:
 
     def get_feature_analysis(self, feature: str) -> Dict[str, Any]:
         """Analyze a specific feature across all classes using REAL data."""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             if self.mock_data is None:
                 return {
@@ -962,6 +1040,13 @@ class MLInterface:
 
     def get_class_comparison(self, feature: str, classes: List[str] = None) -> Dict[str, Any]:
         """Compare feature values between different classes using REAL data."""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             if self.mock_data is None:
                 return {
@@ -1088,6 +1173,13 @@ class MLInterface:
     def get_plot_data(self, plot_type: str, features: List[str] = None,
                        filters: Optional[Dict] = None) -> Dict[str, Any]:
         """Get data for plotting with optional filtering"""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             if self.mock_data is None:
                 return {
@@ -1300,6 +1392,13 @@ class MLInterface:
     
     def create_plot(self, plot_request: str) -> Dict[str, Any]:
         """Create a plot using the plotting engine."""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             from ML.plotting_engine import PlottingEngine
             
@@ -1386,6 +1485,13 @@ class MLInterface:
 
     def get_available_features(self) -> List[str]:
         """Get list of available features."""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         if self.mock_data is not None:
             # Return actual column names excluding label and sample
             return [col for col in self.mock_data.columns if col not in ['label', 'sample']]
@@ -1393,6 +1499,13 @@ class MLInterface:
 
     def create_plot_from_data(self, plot_type: str, plot_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create an actual matplotlib figure from prepared plot data"""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
+        
         try:
             import matplotlib.pyplot as plt
             import seaborn as sns
@@ -1602,6 +1715,12 @@ class MLInterface:
 
     def get_data_quality_summary(self) -> Dict[str, Any]:
         """Get a comprehensive summary of data quality and reliability"""
+        if not self._check_data_available():
+            return {
+                'status': 'error',
+                'message': 'No data loaded. Please load a dataset first.',
+                'data_source': 'No data'
+            }
         try:
             if self.mock_data is None:
                 return {
@@ -1876,388 +1995,3 @@ class MLInterface:
 
 # Global instance
 ml_interface = MLInterface()
-
-
-# Add this test to your main function or create a separate test
-def test_dataset_overview():
-    """Simple test for the dataset overview function"""
-    print("\n" + "=" * 60)
-    print("TESTING DATASET OVERVIEW FUNCTION")
-    print("=" * 60)
-    
-    try:
-        # Get the overview
-        overview = ml_interface.get_dataset_overview()
-        
-        # Check if the function executed successfully
-        if overview['status'] == 'success':
-            print("✓ Dataset overview function executed successfully")
-            
-            # Display key information
-            print(f"\nDATASET SUMMARY:")
-            print(f"- Status: {overview['status']}")
-            print(f"- Total samples: {overview['total_samples']}")
-            print(f"- Data shape: {overview.get('data_shape', 'N/A')}")
-            print(f"- Total features: {overview['total_features']}")
-            print(f"- Numeric features: {overview['numeric_features']}")
-            print(f"- Categorical features: {overview['categorical_features']}")
-            print(f"- Label column: {overview.get('label_column', 'N/A')}")
-            print(f"- Missing values: {overview.get('missing_values_total', 'N/A')} ({overview.get('missing_percentage', 'N/A')}%)")
-            print(f"- Memory usage: {overview.get('memory_usage_mb', 'N/A')} MB")
-            print(f"- Data source: {overview['data_source']}")
-            
-            # Display class distribution
-            print(f"\nCLASS DISTRIBUTION:")
-            if overview['classes']:
-                for class_name, count in overview['classes'].items():
-                    percentage = (count / overview['total_samples'] * 100) if overview['total_samples'] > 0 else 0
-                    print(f"- {class_name}: {count} samples ({percentage:.1f}%)")
-            else:
-                print("- No class information available")
-            
-            # Display sample features
-            print(f"\nSAMPLE FEATURES (first 10):")
-            sample_features = overview.get('sample_feature_names', [])
-            if sample_features:
-                for i, feature in enumerate(sample_features, 1):
-                    print(f"  {i:2d}. {feature}")
-            else:
-                print("- No feature information available")
-            
-            if overview['total_feature_count'] > 10:
-                print(f"  ... and {overview['total_feature_count'] - 10} more features")
-            
-            # Display column information
-            print(f"\nCOLUMN INFORMATION:")
-            col_info = overview.get('column_info', {})
-            if col_info:
-                print(f"- Total columns: {len(col_info.get('all_columns', []))}")
-                print(f"- Excluded columns: {col_info.get('excluded_columns', [])}")
-                data_types_summary = col_info.get('data_types_summary', {})
-                print(f"- Data types: {data_types_summary.get('numeric', 0)} numeric, {data_types_summary.get('categorical', 0)} categorical")
-            
-            # Validation checks
-            print(f"\nVALIDATION CHECKS:")
-            checks_passed = 0
-            total_checks = 5
-            
-            # Check 1: Has data
-            if overview['total_samples'] > 0:
-                print("✓ Dataset contains samples")
-                checks_passed += 1
-            else:
-                print("✗ Dataset is empty")
-            
-            # Check 2: Has features
-            if overview['total_features'] > 0:
-                print("✓ Dataset contains features")
-                checks_passed += 1
-            else:
-                print("✗ No features found")
-            
-            # Check 3: Has classes
-            if overview['classes'] and len(overview['classes']) > 0:
-                print("✓ Class information available")
-                checks_passed += 1
-            else:
-                print("✗ No class information found")
-            
-            # Check 4: Reasonable data quality
-            missing_pct = overview.get('missing_percentage', 0)
-            if missing_pct < 20:
-                print(f"✓ Acceptable missing data level ({missing_pct}%)")
-                checks_passed += 1
-            else:
-                print(f"⚠ High missing data level ({missing_pct}%)")
-            
-            # Check 5: Multiple classes for classification
-            num_classes = len(overview['classes']) if overview['classes'] else 0
-            if num_classes >= 2:
-                print(f"✓ Multiple classes for classification ({num_classes} classes)")
-                checks_passed += 1
-            else:
-                print(f"⚠ Only {num_classes} class(es) found")
-            
-            print(f"\nOVERALL ASSESSMENT: {checks_passed}/{total_checks} checks passed")
-            
-            if checks_passed >= 4:
-                print("🎉 Dataset looks good for analysis!")
-            elif checks_passed >= 2:
-                print("⚠️  Dataset has some issues but may be usable")
-            else:
-                print("❌ Dataset has significant issues")
-            
-        elif overview['status'] == 'warning':
-            print("⚠️ Dataset overview returned warning")
-            print(f"Message: {overview.get('message', 'Unknown warning')}")
-            
-        else:  # status == 'error'
-            print("❌ Dataset overview failed")
-            print(f"Error: {overview.get('message', 'Unknown error')}")
-            if 'error_details' in overview:
-                print("Error details:")
-                print(overview['error_details'])
-        
-        return overview
-        
-    except Exception as e:
-        print(f"❌ Test failed with exception: {str(e)}")
-        import traceback
-        print("Traceback:")
-        print(traceback.format_exc())
-        return None
-
-if __name__ == "__main__":
-    print("=" * 80)
-    print("TESTING ML INTERFACE WITH UPDATED DATASET COMPATIBILITY")
-    print("=" * 80)
-    
-    # Test 1: Check if data loaded successfully
-    print("\n1. DATA LOADING TEST")
-    print("-" * 40)
-    if ml_interface.mock_data is not None:
-        print(f"✓ Data loaded successfully")
-        print(f"  - Shape: {ml_interface.mock_data.shape}")
-        print(f"  - Classes: {ml_interface.mock_data['label'].value_counts().to_dict()}")
-        print(f"  - Sample columns: {list(ml_interface.mock_data.columns[:5])}...")
-    else:
-        print("✗ Failed to load data")
-        exit(1)
-    
-    # Test 2: Check available sensors
-    print("\n2. AVAILABLE SENSORS TEST")
-    print("-" * 40)
-    available_sensors = ml_interface.available_sensors
-    print(f"Available sensors ({len(available_sensors)}):")
-    for i, sensor in enumerate(available_sensors[:10], 1):
-        print(f"  {i}. {sensor}")
-    if len(available_sensors) > 10:
-        print(f"  ... and {len(available_sensors) - 10} more")
-    
-    # Test 3: Check available features
-    print("\n3. AVAILABLE FEATURES TEST")
-    print("-" * 40)
-    available_features = ml_interface.get_available_features()
-    print(f"Total features: {len(available_features)}")
-    print("Sample features:")
-    for i, feature in enumerate(available_features[:10], 1):
-        print(f"  {i}. {feature}")
-    if len(available_features) > 10:
-        print(f"  ... and {len(available_features) - 10} more")
-    
-    # Test 4: Test sensor name mapping
-    print("\n4. SENSOR MAPPING TEST")
-    print("-" * 40)
-    test_sensors = [
-        'temperature',
-        'HTS221_TEMP',
-        'HTS221_TEMP_TEMP_mean',
-        'humidity',
-        'HTS221_HUM',
-        'pressure',
-        'LPS22HH_PRESS',
-        'acceleration_x',
-        'IIS3DWB_ACC',
-        'gyroscope_x',
-        'ISM330DHCX_GYRO'
-    ]
-    
-    for sensor in test_sensors:
-        mapped = ml_interface._map_sensor_to_column(sensor)
-        exists = mapped in ml_interface.mock_data.columns
-        status = "✓" if exists else "✗"
-        print(f"  {status} '{sensor}' -> '{mapped}' (exists: {exists})")
-    
-    # Test 5: Basic statistics tests
-    print("\n5. BASIC STATISTICS TEST")
-    print("-" * 40)
-    
-    # Test with actual column names from dataset
-    test_cases = [
-        ('mean', 'HTS221_TEMP_TEMP_mean'),
-        ('std', 'HTS221_TEMP_TEMP_mean'),
-        ('mean', 'HTS221_HUM_HUM_mean'),
-        ('mean', 'LPS22HH_PRESS_PRESS_mean'),
-        ('mean', 'IIS3DWB_ACC_A_x_mean'),
-        ('mean', 'ISM330DHCX_GYRO_G_x_mean'),
-    ]
-    
-    # Also test with mapped names
-    mapped_test_cases = [
-        ('mean', 'temperature'),
-        ('std', 'temperature'),
-        ('mean', 'humidity'),
-        ('mean', 'pressure'),
-    ]
-    
-    all_test_cases = test_cases + mapped_test_cases
-    
-    for stat_type, column in all_test_cases:
-        print(f"\nTesting {stat_type} for {column}:")
-        result = ml_interface.get_statistic(stat=stat_type, column=column)
-        
-        if result['status'] == 'success':
-            print(f"  ✓ Success: {result['result']:.4f}")
-            print(f"    - Mapped to: {result.get('mapped_column', 'N/A')}")
-            print(f"    - Sample count: {result.get('sample_count', 'N/A')}")
-        else:
-            print(f"  ✗ Error: {result['message']}")
-    
-    # Test 6: Grouped statistics by class
-    print("\n6. GROUPED STATISTICS TEST")
-    print("-" * 40)
-    
-    print("Testing mean temperature by class:")
-    result = ml_interface.get_statistic(stat='mean', column='HTS221_TEMP_TEMP_mean', group_by='class')
-    
-    if result['status'] == 'success':
-        print("  ✓ Success:")
-        for class_name, value in result['result'].items():
-            print(f"    - {class_name}: {value:.4f}")
-    else:
-        print(f"  ✗ Error: {result['message']}")
-    
-    # Test 7: Filtered statistics
-    print("\n7. FILTERED STATISTICS TEST")
-    print("-" * 40)
-    
-    print("Testing mean temperature for OK and KO classes only:")
-    result = ml_interface.get_statistic(
-        stat='mean', 
-        column='HTS221_TEMP_TEMP_mean', 
-        filters={'class': ['OK', 'KO']},
-        group_by='class'
-    )
-    
-    if result['status'] == 'success':
-        print("  ✓ Success:")
-        for class_name, value in result['result'].items():
-            print(f"    - {class_name}: {value:.4f}")
-    else:
-        print(f"  ✗ Error: {result['message']}")
-    
-    # Test 8: Top features analysis
-    print("\n8. TOP FEATURES ANALYSIS TEST")
-    print("-" * 40)
-    
-    print("Getting top 5 discriminative features:")
-    result = ml_interface.get_top_features(n=5, classes=['OK', 'KO'])
-    
-    if result['status'] == 'success':
-        print("  ✓ Success:")
-        for i, feature in enumerate(result['top_features'], 1):
-            details = result['feature_details'][feature]
-            print(f"    {i}. {feature}")
-            print(f"       Discriminative score: {details['discriminative_score']:.4f}")
-            print(f"       Analysis method: {details['analysis_method']}")
-            print(f"       Class means: {details['class_means']}")
-            print(f"       Sample count: {details['sample_count']}")
-    else:
-        print(f"  ✗ Error: {result['message']}")
-    
-    # Test 9: Dataset overview
-    print("\n9. DATASET OVERVIEW TEST")
-    print("-" * 40)
-    
-    overview = ml_interface.get_dataset_overview()
-    if overview['status'] == 'success':
-        print("  ✓ Success:")
-        print(f"    - Total samples: {overview['total_samples']}")
-        print(f"    - Classes: {overview['classes']}")
-        # print(f"    - Number of features: {len(overview['features'])}")
-    else:
-        print(f"  ✗ Error: {overview.get('message', 'Unknown error')}")
-    
-    # Test 10: Data quality assessment
-    print("\n10. DATA QUALITY ASSESSMENT TEST")
-    print("-" * 40)
-    
-    quality_summary = ml_interface.get_data_quality_summary()
-    if quality_summary['status'] == 'success':
-        summary = quality_summary['data_quality_summary']
-        print("  ✓ Success:")
-        print(f"    - Overall quality: {summary['overall_quality']}")
-        print(f"    - Quality score: {summary['quality_score']}/100")
-        print(f"    - Total samples: {summary['total_samples']}")
-        print(f"    - Total features: {summary['total_features']}")
-        print(f"    - Missing data: {summary['missing_data_percentage']:.2f}%")
-        if summary['quality_issues']:
-            print("    - Issues:")
-            for issue in summary['quality_issues']:
-                print(f"      • {issue}")
-    else:
-        print(f"  ✗ Error: {quality_summary['message']}")
-    
-    # Test 11: Error handling tests
-    print("\n11. ERROR HANDLING TEST")
-    print("-" * 40)
-    
-    # Test with non-existent column
-    print("Testing with non-existent column:")
-    result = ml_interface.get_statistic(stat='mean', column='NONEXISTENT_SENSOR')
-    if result['status'] == 'error':
-        print(f"  ✓ Properly handled error: {result['message']}")
-    else:
-        print(f"  ✗ Should have failed but got: {result}")
-    
-    # Test with invalid statistic
-    print("\nTesting with invalid statistic:")
-    result = ml_interface.get_statistic(stat='invalid_stat', column='HTS221_TEMP_TEMP_mean')
-    if result['status'] == 'error':
-        print(f"  ✓ Properly handled error: {result['message']}")
-    else:
-        print(f"  ✗ Should have failed but got: {result}")
-    
-    print("\n" + "=" * 80)
-    print("TESTING COMPLETED")
-    print("=" * 80)
-    
-    # Summary of key findings
-    print(f"\nKEY FINDINGS:")
-    print(f"- Dataset shape: {ml_interface.mock_data.shape if ml_interface.mock_data is not None else 'N/A'}")
-    print(f"- Available sensors: {len(ml_interface.available_sensors)}")
-    print(f"- Available features: {len(ml_interface.get_available_features())}")
-    print(f"- Classes in dataset: {list(ml_interface.mock_data['label'].unique()) if ml_interface.mock_data is not None else 'N/A'}")
-
-
-
-    # Test feature - using temperature as it's commonly available
-    test_feature = 'HTS221_TEMP_TEMP_mean'
-    
-    print(f"\n1. TESTING FEATURE: {test_feature}")
-    print("-" * 50)
-    
-    # Run the function
-    result = ml_interface.get_feature_analysis(test_feature)
-    
-    # Display results
-    if result['status'] == 'success':
-        print("✓ Function executed successfully")
-        print(f"Feature: {result['feature']}")
-        print(f"Mapped column: {result['mapped_column']}")
-        print(f"Total samples: {result['total_samples']}")
-        
-        print("\nClass Analysis Results:")
-        for class_name, stats in result['analysis'].items():
-            print(f"\n{class_name} Class:")
-            if stats['count'] > 0:
-                print(f"  - Count: {stats['count']}")
-                print(f"  - Mean: {stats['mean']:.6f}")
-                print(f"  - Std: {stats['std']:.6f}")
-                print(f"  - Min: {stats['min']:.6f}")
-                print(f"  - Max: {stats['max']:.6f}")
-                print(f"  - Median: {stats['median']:.6f}")
-                print(f"  - Variance: {stats['variance']:.6f}")
-            else:
-                print(f"  - No data for this class")
-        
-        if result.get('discriminative_score'):
-            print(f"\nDiscriminative Score: {result['discriminative_score']:.6f}")
-            print(f"Relative Difference: {result['relative_difference']:.6f}")
-        
-    else:
-        print("✗ Function failed:")
-        print(f"Error: {result['message']}")
-    
-
-    test_dataset_overview()
