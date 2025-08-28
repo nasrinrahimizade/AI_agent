@@ -21,6 +21,7 @@ class CommandType(Enum):
     FEATURE_ANALYSIS = "feature_analysis"
     CLASSIFICATION = "classification"
     CORRELATION = "correlation"
+    FREQUENCY = "frequency"
     UNKNOWN = "unknown"
 
 class StatisticType(Enum):
@@ -36,7 +37,7 @@ class StatisticType(Enum):
     IQR = "iqr"
     COUNT = "count"
     SUM = "sum"
-
+    FREQUENCY = "frequency"
 class PlotType(Enum):
     """Types of plots available"""
     LINE_GRAPH = "line_graph"
@@ -127,7 +128,12 @@ class UnifiedParser:
             StatisticType.COUNT: [
                 r'\b(?:what is the |get |show |calculate |give me |find the )?count\b',
                 r'\bnumber of\b', r'\btotal\b'
+            ],
+            StatisticType.FREQUENCY: [
+                r'\b(?:what is the |get |show |calculate |give me |find the )?frequency\b',
+                r'\b(?:fft|spectrum|oscillation|vibration)\b'
             ]
+            
         }
         
         # Plot patterns
@@ -154,6 +160,14 @@ class UnifiedParser:
             PlotType.HEATMAP: [
                 r'\b(?:show |create |generate |make |display )?(?:a )?heatmap\b',
                 r'\b(?:heat map|heat-map)\b'
+            ],
+            PlotType.TIMESERIES: [
+                r'\b(?:show |create |generate |make |display )?(?:a )?time(?: series)?(?: plot)?\b',
+                r'\b(?:time plot|timeseries|temporal plot|temporal)\b'
+            ],
+            PlotType.FREQUENCY: [
+                r'\b(?:show |create |generate |make |display )?(?:a )?frequency(?: plot)?\b',
+                r'\b(?:frequency plot|frequency distribution)\b'
             ]
         }
         
@@ -185,6 +199,9 @@ class UnifiedParser:
             CommandType.FEATURE_ANALYSIS: [
                 r'\b(?:feature|sensor|characteristic)\b',
                 r'\b(?:analysis|examination|investigation)\b'
+            ],
+            CommandType.FREQUENCY: [
+                r'\b(?:frequency|fft|spectrum|oscillation|vibration)\b'
             ]
         }
         
@@ -343,8 +360,10 @@ class UnifiedParser:
                or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.SCATTER, [])) \
                or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.CORRELATION, [])) \
                or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.VIOLIN, [])) \
-               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HEATMAP, []))
-            
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.HEATMAP, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.TIMESERIES, [])) \
+               or any(p.search(text_lower) for p in self.plot_patterns.get(PlotType.FREQUENCY, [])) \
+
             if has_specific_plot_type:
                 return CommandType.PLOT, "visual"
             
@@ -460,7 +479,8 @@ class UnifiedParser:
             (r'\b(?:heatmap?|heat\s+map?|heat-map?)\b', 'heatmap'),
             (r'\b(?:bar\s+chart?|bar\s+graph?)\b', 'bar chart'),
             (r'\b(?:pie\s+chart?)\b', 'pie chart'),
-            (r'\b(?:time\s+plot?|timeseries?|time\s+series?|temporal\s+plot?)\b', 'time plot')
+            (r'\b(?:time\s+plot?|timeseries?|time\s+series?|temporal\s+plot?)\b', 'time plot'),
+            (r'\b(?:frequency\s+plot?|frequency\s+domain?)\b', 'frequency plot')
         ]
         
         for pattern, plot_name in plot_type_patterns:
@@ -482,7 +502,8 @@ class UnifiedParser:
             return 'bar chart'
         elif any(word in text_lower for word in ['time', 'temporal', 'timeseries']):
             return 'time plot'
-        
+        elif any(word in text_lower for word in ['frequency', 'frequency domain']):
+            return 'frequency plot'
         return 'line graph'  # Default
     
     def _parse_comparison_command(self, text_lower: str, parsed: UnifiedParsedCommand):

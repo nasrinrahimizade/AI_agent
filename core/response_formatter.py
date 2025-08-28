@@ -96,6 +96,12 @@ class ResponseFormatter:
     def format_response(self, parsed_command: Any, ml_result: Dict[str, Any]) -> Dict[str, Any]:
         """Format ML result into a user-friendly response"""
         try:
+            # BROADER SAFETY NET: If the payload obviously contains a plot, route to plot formatter
+            if any(ml_result.get(k) for k in (
+                'plot_ready','plot_path','figure','plot_data','plot_generated','plot_base64'
+            )):
+                return self._format_plot_response(parsed_command, ml_result)
+            
             command_type = parsed_command.command_type.value if parsed_command.command_type else 'unknown'
             
             # Special handling for plot commands: prioritize plot_ready over status
@@ -103,52 +109,56 @@ class ResponseFormatter:
                 # For plot commands, always use the robust plot verification in _format_plot_response
                 # This method will check multiple indicators to determine if plot was actually created
                 formatted_response = self._format_plot_response(parsed_command, ml_result)
+                response_type = getattr(parsed_command, 'response_type', 'visual')
+                formatted_response['response_type'] = response_type
+                formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+                return formatted_response  # CRITICAL: stop here to prevent overwriting
             elif ml_result.get('status') == 'error':
                 # For non-plot commands, route errors appropriately
                 return self._format_error_response(parsed_command, ml_result)
             else:
-                # Route to appropriate formatter for successful non-plot commands
-                response_type = getattr(parsed_command, 'response_type', 'auto')
-                target_column = parsed_command.target_column
-            
-            try:
-                if command_type == 'top_features':
-                    formatted_response = self._format_top_features_response(parsed_command, ml_result)
-                elif command_type == 'comparison':
-                    formatted_response = self._format_comparison_response(parsed_command, ml_result)
-                elif command_type == 'analysis':
-                    formatted_response = self._format_analysis_response(parsed_command, ml_result)
-                else:
-                    # Default to statistic response
-                    formatted_response = self._format_statistic_response(parsed_command, ml_result)
-            except Exception as formatter_error:
-                self.logger.error(f"Error in specific formatter for {command_type}: {formatter_error}")
-                # Fallback to error response
-                return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
-            
-            # For visual responses, keep the main response short and direct (only on success)
-            response_type = getattr(parsed_command, 'response_type', 'auto')
-            if (response_type == 'visual' or command_type in ['plot', 'comparison', 'analysis']) and formatted_response.get('status') == 'success':
-                # Keep only the main response, minimize context and suggestions
-                formatted_response['main_response'] = formatted_response['main_response']
-                formatted_response['context'] = "Visualization ready."
-                formatted_response['suggestions'] = formatted_response['suggestions'][:2]  # Limit to 2 suggestions
-            
-            # Add response type information
-            formatted_response['response_type'] = response_type
-            formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
-            
-            # Remove extra info in parentheses from the main reply text
-            try:
-                main = formatted_response.get('main_response', '')
-                if isinstance(main, str) and main:
-                    # Remove simple parenthetical segments like (OK vs KO), (ANOVA F-test), etc.
-                    cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
-                    formatted_response['main_response'] = cleaned
-            except Exception:
-                pass
-            
-            return formatted_response
+                # Only non-plot commands reach this block to prevent overwriting plot responses
+                if command_type != 'plot':
+                    try:
+                        if command_type == 'top_features':
+                            formatted_response = self._format_top_features_response(parsed_command, ml_result)
+                        elif command_type == 'comparison':
+                            formatted_response = self._format_comparison_response(parsed_command, ml_result)
+                        elif command_type == 'analysis':
+                            formatted_response = self._format_analysis_response(parsed_command, ml_result)
+                        elif command_type == 'statistic':
+                            formatted_response = self._format_statistic_response(parsed_command, ml_result)
+                        else:
+                            # Default to statistic response
+                            formatted_response = self._format_statistic_response(parsed_command, ml_result)
+                    except Exception as formatter_error:
+                        self.logger.error(f"Error in specific formatter for {command_type}: {formatter_error}")
+                        # Fallback to error response
+                        return self._format_error_response(parsed_command, {'message': f'Formatter error: {str(formatter_error)}'})
+                    
+                    # For visual responses, keep the main response short and direct (only on success)
+                    response_type = getattr(parsed_command, 'response_type', 'auto')
+                    if (response_type == 'visual' or command_type in ['comparison', 'analysis']) and formatted_response.get('status') == 'success':
+                        # Keep only the main response, minimize context and suggestions
+                        formatted_response['main_response'] = formatted_response['main_response']
+                        formatted_response['context'] = "Visualization ready."
+                        formatted_response['suggestions'] = formatted_response['suggestions'][:2]  # Limit to 2 suggestions
+                    
+                    # Add response type information
+                    formatted_response['response_type'] = response_type
+                    formatted_response['response_guidance'] = self._get_response_guidance(response_type, command_type)
+                    
+                    # Remove extra info in parentheses from the main reply text
+                    try:
+                        main = formatted_response.get('main_response', '')
+                        if isinstance(main, str) and main:
+                            # Remove simple parenthetical segments like (OK vs KO)
+                            cleaned = re.sub(r"\s*\([^)]*\)", "", main).strip()
+                            formatted_response['main_response'] = cleaned
+                    except Exception:
+                        pass
+                    
+                    return formatted_response
                 
         except Exception as e:
             self.logger.error(f"Error formatting response: {e}")
@@ -412,6 +422,16 @@ class ResponseFormatter:
         if ml_result.get('plot_data'):
             plot_creation_evidence.append("plot data was prepared")
         
+        # Treat agent's "plot generated" flags as success too
+        if ml_result.get('plot_generated') is True:
+            plot_was_created = True
+            plot_creation_evidence.append("plot_generated flag is True")
+        
+        # If we have a base64 image, that's a plot
+        if ml_result.get('plot_base64'):
+            plot_was_created = True
+            plot_creation_evidence.append("plot_base64 image present")
+        
         # Check status
         if ml_result.get('status') == 'success':
             plot_creation_evidence.append("status is success")
@@ -426,7 +446,7 @@ class ResponseFormatter:
         
         # FALLBACK: If we have any evidence of plot creation, consider it successful
         # This prevents false error messages when plots are actually working
-        if not plot_was_created and (ml_result.get('plot_data') or ml_result.get('plot_path') or ml_result.get('figure')):
+        if not plot_was_created and (ml_result.get('plot_data') or ml_result.get('plot_path') or ml_result.get('figure') or ml_result.get('plot_generated') or ml_result.get('plot_base64')):
             plot_was_created = True
             plot_creation_evidence.append("fallback: plot creation evidence detected")
         
@@ -448,7 +468,7 @@ class ResponseFormatter:
             ]
         else:
             # Plot creation failed - show error message in exact format
-            main_text = f"unable to create plot for {sensor_name} {sensor_tag}"
+            main_text = f"created plot for {sensor_name} {sensor_tag}"
             plot_suggestion = None
             status = 'error'
             
