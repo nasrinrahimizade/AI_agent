@@ -3,7 +3,6 @@
 A comprehensive, AI-powered desktop application for statistical analysis, machine learning, and data visualization with natural language interface. Built with PySide6 and powered by Llama-3.2-1B for intelligent data science workflows.
 
 ### **Enhanced AI Capabilities**
-- **Professional Data Scientist Persona**: Expert-level AI assistant specialized in sensor data analysis
 - **Advanced Natural Language Processing**: Intelligent plot request detection and generation
 - **Memory & Learning**: AI remembers user preferences and learns from interactions
 - **Statistical Expertise**: Focus on statistical significance and data-driven insights
@@ -12,13 +11,9 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Validation-First Approach**: Pre-validates requests before generating responses
 
 ### **Improved Architecture**
-- **Unified AI Agent Interface**: Single entry point for all ML and statistical operations
 - **Enhanced Prompt System**: Comprehensive, professional prompts for data science tasks
-- **Better Error Handling**: Fallback data generation and graceful error recovery
 - **Performance Optimization**: Cached analysis results and efficient data processing
 - **Unified Parser System**: Advanced natural language command parsing and routing
-- **Response Formatting Engine**: Professional formatting with error handling
-- **Multi-Layer Defense**: Comprehensive response cleaning and sanitization
 
 ## 🏗️ **Architecture Overview**
 
@@ -46,7 +41,7 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Context-Aware Responses**: Adapts responses based on conversation history and user expertise
 
 ### **📊 Advanced Visualization**
-- **Multiple Plot Types**: Histograms, line graphs, scatter plots, correlation matrices, violin plots
+- **Multiple Plot Types**: Histograms, time plot, frequency plots
 - **Time Series Analysis**: Temporal pattern detection and trend analysis
 - **Frequency Domain**: FFT analysis for signal processing applications
 - **Sensor-Specific**: Specialized analysis for accelerometer, gyroscope, magnetometer, temperature, pressure, humidity, microphone
@@ -58,7 +53,6 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Statistical Significance**: Hypothesis testing and confidence intervals
 - **Class Comparison**: OK vs KO analysis with detailed metrics (supports 4-class structure)
 - **Performance Metrics**: Accuracy, precision, recall, and F1 scores
-- **Advanced Statistical Tests**: T-tests, ANOVA, correlation analysis, feature importance ranking
 - **Multi-Class Support**: Handles OK, KO_HIGH_2mm, KO_LOW_2mm, KO_LOW_4mm classifications
 
 ### **💻 Modern Interface**
@@ -67,13 +61,8 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Real-Time Updates**: Dynamic plot generation and analysis results
 - **Professional Design**: Clean, intuitive interface for data scientists
 - **Multi-View Support**: Chat, Help, and integrated plotting interface
-- **Background Processing**: Non-blocking AI responses with worker threads
 
 ### **🧠 Advanced AI Features**
-- **Response Sanitization**: Multi-layered cleaning to remove AI artifacts
-- **Speaker Label Removal**: Eliminates "AI:", "User:" artifacts from responses
-- **Instruction Leakage Prevention**: Removes prompt instructions and formatting artifacts
-- **Self-Conversation Detection**: Prevents AI from talking to itself
 - **Smart Emoji Integration**: Contextually relevant emojis for better user experience
 - **Conversation Flow Tracking**: Monitors topic transitions and user preferences
 
@@ -130,7 +119,7 @@ Statistical-AI-Agent/
 ### **1. Installation**
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone <repo-url>
 cd AI-agent
 
 # Install dependencies
@@ -146,7 +135,7 @@ python main.py
 ```
 
 ### **3. Start Analyzing**
-1. **Load Data**: Use File → Open Dataset to load your CSV data
+1. **Load Data**: Use File → Open Dataset to load your CSV data using the plus (+) button
 2. **Chat with AI**: Ask for analysis in natural language
 3. **Generate Plots**: Request visualizations through conversation
 4. **Get Insights**: Receive professional statistical analysis
@@ -155,23 +144,21 @@ python main.py
 
 ### **📈 Plot Generation**
 ```
-"Show me a line graph of accelerometer data"
-"Create a histogram of temperature readings"
+"create a time plot of temp sensor for all classes"
+"create a time plot of temp sensor for OK class"
+"Show me a frequency plot of accelerometer data"
 "Display correlation matrix between sensors"
 "Generate time series analysis of pressure data"
 "Show frequency spectrum of vibration data"
-"Create scatter plot of feature relationships"
-"Generate violin plot for sensor comparison"
 ```
 
 ### **🔍 Statistical Analysis**
 ```
 "What are the most discriminative features?"
-"Compare OK vs KO samples statistically"
-"Show me feature importance ranking"
+"What is the mean temperature for KO_HIGH_2mm samples from HTS221_TEMP?"
+"show available sensors"
 "Analyze the dataset for patterns"
-"Give me a statistical summary"
-"Calculate correlation between temperature and humidity"
+"Calculate the median humidity for KO_LOW_2mm samples"
 ```
 
 ### **📊 Sensor-Specific Analysis**
@@ -179,21 +166,8 @@ python main.py
 "Analyze accelerometer sensor patterns"
 "Show temperature sensor distribution"
 "Compare pressure readings between classes"
-"Display humidity sensor correlations"
 "Analyze microphone frequency data"
-"Compare gyroscope data across classes"
 "Analyze magnetometer patterns"
-```
-
-### **🎯 Advanced Requests**
-```
-"Find the best features for classification"
-"Show me statistical significance tests"
-"Generate comprehensive analysis report"
-"Identify outliers in the dataset"
-"Recommend next analysis steps"
-"Compare all sensor types for discrimination"
-"Analyze feature relationships and dependencies"
 ```
 
 ### **💬 General Conversation**
@@ -258,22 +232,13 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Motion**: IIS2DH, IIS3DWB, ISM330DHCX (Accelerometer, Gyroscope)
 - **Magnetic**: IIS2MDC (Magnetometer)
 - **Audio**: IMP23ABSU, IMP34DT05 (Microphone)
-
+- **or ask for "show available sensors"**
 ## 🎨 **Visualization Types**
-
-### **Statistical Plots**
-- **Line Graphs**: Class comparison and trend analysis (DEFAULT)
-- **Histograms**: Distribution analysis and pattern recognition
-- **Scatter Plots**: Feature relationship exploration
-- **Correlation Matrices**: Feature association analysis
-- **Violin Plots**: Distribution comparison across classes
-- **Bar Charts**: Categorical data visualization
 
 ### **Advanced Visualizations**
 - **Time Series**: Temporal pattern analysis
 - **Frequency Domain**: FFT-based signal analysis
 - **Feature Importance**: Discriminative feature ranking
-- **Class Comparison**: Statistical significance visualization
 - **Multi-Sensor Analysis**: Cross-sensor correlation and comparison
 - **Statistical Significance**: P-value visualization and confidence intervals
 
@@ -288,6 +253,41 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 
 ### **Performance Tips**
 - **GPU Acceleration**: Enable CUDA for faster AI inference
+- **Data Caching**: Large datasets are automatically cached
+- **Memory Management**: Close unused plots to free memory
+- **Batch Processing**: Process multiple requests efficiently
+- **Background Processing**: AI responses run in separate threads
+
+## 🚀 **Future Enhancements**
+
+### **Planned Features**
+- **Real-Time Data Streaming**: Live sensor data analysis
+- **Advanced ML Models**: Deep learning integration
+- **Cloud Deployment**: Web-based analysis platform
+- **API Integration**: RESTful endpoints for external access
+- **Multi-Language Support**: Internationalization features
+- **Advanced Statistical Tests**: More comprehensive hypothesis testing
+- **Custom Plot Types**: User-defined visualization templates
+
+### **Extensibility**
+- **Plugin System**: Custom analysis modules
+- **Custom Plots**: User-defined visualization types
+- **Data Connectors**: Database and API integrations
+- **Export Formats**: Multiple output format support
+- **Batch Analysis**: Automated analysis workflows
+
+### **Code Standards**
+- **Documentation**: Comprehensive docstrings and comments
+- **Performance**: Optimize for large datasets and real-time use
+- **Error Handling**: Comprehensive validation and graceful degradation
+
+## 🙏 **Acknowledgments**
+
+- **Llama-3.2-1B**: Meta's open-source language model
+- **PySide6**: Qt for Python framework
+- **Transformers**: Hugging Face's AI library
+- **Scientific Python**: pandas, numpy, scipy, matplotlib ecosystem
+- **Scikit-learn**: Machine learning algorithms and tools
 - **Data Caching**: Large datasets are automatically cached
 - **Memory Management**: Close unused plots to free memory
 - **Batch Processing**: Process multiple requests efficiently
