@@ -1,4 +1,4 @@
-# 🤖 Statistical AI Agent - Advanced Data Analysis Platform
+# Statistical AI Agent - Advanced Data Analysis Platform
 
 A comprehensive, AI-powered desktop application for statistical analysis, machine learning, and data visualization with natural language interface. Built with PySide6 and powered by Llama-3.2-1B for intelligent data science workflows.
 
@@ -15,7 +15,7 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Performance Optimization**: Cached analysis results and efficient data processing
 - **Unified Parser System**: Advanced natural language command parsing and routing
 
-## 🏗️ **Architecture Overview**
+## 🏗 **Architecture Overview**
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -29,9 +29,9 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Core Layer**: AI chatbot, unified parser, request handler, response formatter, and ML interface
 - **ML Layer**: Statistical analysis, feature selection, plotting engine, and machine learning
 
-## 🎯 **Key Features**
+##  **Key Features**
 
-### **🤖 AI-Powered Analysis**
+### ** AI-Powered Analysis**
 - **Natural Language Interface**: Ask for plots and analysis in plain English
 - **Intelligent Plot Generation**: Automatic visualization based on conversation context
 - **Statistical Insights**: Professional data science analysis and recommendations
@@ -40,7 +40,7 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Capability Recognition**: Automatically detects skills/capabilities questions
 - **Context-Aware Responses**: Adapts responses based on conversation history and user expertise
 
-### **📊 Advanced Visualization**
+### ** Advanced Visualization**
 - **Multiple Plot Types**: Histograms, time plot, frequency plots
 - **Time Series Analysis**: Temporal pattern detection and trend analysis
 - **Frequency Domain**: FFT analysis for signal processing applications
@@ -48,25 +48,25 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Real-Time Plot Generation**: Dynamic plot creation with GUI integration
 - **Plot Validation**: Ensures requested plots can actually be created before confirmation
 
-### **🔬 Statistical Engine**
+### ** Statistical Engine**
 - **Feature Discrimination**: Identify most important features between classes
 - **Statistical Significance**: Hypothesis testing and confidence intervals
 - **Class Comparison**: OK vs KO analysis with detailed metrics (supports 4-class structure)
 - **Performance Metrics**: Accuracy, precision, recall, and F1 scores
 - **Multi-Class Support**: Handles OK, KO_HIGH_2mm, KO_LOW_2mm, KO_LOW_4mm classifications
 
-### **💻 Modern Interface**
+### ** Modern Interface**
 - **Chat-Based UI**: Natural conversation with AI for data analysis
 - **Integrated Plotting**: Plots generated directly within the chat interface
 - **Real-Time Updates**: Dynamic plot generation and analysis results
 - **Professional Design**: Clean, intuitive interface for data scientists
 - **Multi-View Support**: Chat, Help, and integrated plotting interface
 
-### **🧠 Advanced AI Features**
+### ** Advanced AI Features**
 - **Smart Emoji Integration**: Contextually relevant emojis for better user experience
 - **Conversation Flow Tracking**: Monitors topic transitions and user preferences
 
-## 🛠️ **Technical Stack**
+## 🛠 **Technical Stack**
 
 ### **Core Technologies**
 - **GUI Framework**: PySide6 (Qt for Python) with modern UI components
@@ -83,7 +83,7 @@ A comprehensive, AI-powered desktop application for statistical analysis, machin
 - **Statistical Expertise**: Professional data science knowledge and insights
 - **Response Quality Control**: Multi-stage validation and cleaning pipeline
 
-## 📁 **Project Structure**
+##  **Project Structure**
 
 ```
 Statistical-AI-Agent/
@@ -114,7 +114,7 @@ Statistical-AI-Agent/
 └── 📖 README.md                    # This documentation
 ```
 
-## 🚀 **Quick Start**
+## **Quick Start**
 
 ### **1. Installation**
 ```bash
@@ -142,7 +142,7 @@ python main.py
 
 ## 💬 **AI Commands & Examples**
 
-### **📈 Plot Generation**
+### ** Plot Generation**
 ```
 "create a time plot of temp sensor for all classes"
 "create a time plot of temp sensor for OK class"
@@ -152,7 +152,7 @@ python main.py
 "Show frequency spectrum of vibration data"
 ```
 
-### **🔍 Statistical Analysis**
+### ** Statistical Analysis**
 ```
 "What are the most discriminative features?"
 "What is the mean temperature for KO_HIGH_2mm samples from HTS221_TEMP?"
@@ -161,7 +161,7 @@ python main.py
 "Calculate the median humidity for KO_LOW_2mm samples"
 ```
 
-### **📊 Sensor-Specific Analysis**
+### ** Sensor-Specific Analysis**
 ```
 "Analyze accelerometer sensor patterns"
 "Show temperature sensor distribution"
@@ -170,7 +170,7 @@ python main.py
 "Analyze magnetometer patterns"
 ```
 
-### **💬 General Conversation**
+### ** General Conversation**
 ```
 "What are your skills?"
 "What can you do?"
@@ -178,7 +178,7 @@ python main.py
 "Thanks for the help"
 ```
 
-## 🔧 **Configuration & Customization**
+## **Configuration & Customization**
 
 ### **AI Prompt System**
 The enhanced `core/prompt.json` provides:
@@ -210,7 +210,7 @@ The enhanced `core/prompt.json` provides:
 - **Real-Time Generation**: Dynamic plot creation with GUI integration
 - **Plot Validation**: Ensures requested visualizations can be created
 
-## 📊 **Data Requirements**
+## **Data Requirements**
 
 ### **Supported Formats**
 - **CSV Files**: Primary data format with pandas compatibility
@@ -233,7 +233,7 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Magnetic**: IIS2MDC (Magnetometer)
 - **Audio**: IMP23ABSU, IMP34DT05 (Microphone)
 - **or ask for "show available sensors"**
-## 🎨 **Visualization Types**
+## **Visualization Types**
 
 ### **Advanced Visualizations**
 - **Time Series**: Temporal pattern analysis
@@ -242,14 +242,7 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Multi-Sensor Analysis**: Cross-sensor correlation and comparison
 - **Statistical Significance**: P-value visualization and confidence intervals
 
-## 🔍 **Troubleshooting**
-
-### **Common Issues**
-1. **Model Loading**: Ensure Llama-3.2-1B model is properly downloaded
-2. **CUDA Support**: Install appropriate torch version for your GPU
-3. **Dependencies**: Use exact versions from requirements.txt
-4. **Data Loading**: Check CSV format and file permissions
-5. **Plot Generation**: Verify requested sensors and features exist in dataset
+## **Troubleshooting**
 
 ### **Performance Tips**
 - **GPU Acceleration**: Enable CUDA for faster AI inference
@@ -270,7 +263,7 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Performance**: Optimize for large datasets and real-time use
 - **Error Handling**: Comprehensive validation and graceful degradation
 
-## 🙏 **Acknowledgments**
+## **Acknowledgments**
 
 - **Llama-3.2-1B**: Meta's open-source language model
 - **PySide6**: Qt for Python framework
@@ -281,24 +274,3 @@ Sample_004,KO_LOW_4mm,0.456,0.789,0.012,...
 - **Memory Management**: Close unused plots to free memory
 - **Batch Processing**: Process multiple requests efficiently
 - **Background Processing**: AI responses run in separate threads
-
-### **Extensibility**
-- **Plugin System**: Custom analysis modules
-- **Custom Plots**: User-defined visualization types
-- **Data Connectors**: Database and API integrations
-- **Export Formats**: Multiple output format support
-- **Batch Analysis**: Automated analysis workflows
-
-### **Code Standards**
-- **Documentation**: Comprehensive docstrings and comments
-- **Performance**: Optimize for large datasets and real-time use
-- **Error Handling**: Comprehensive validation and graceful degradation
-
-## 🙏 **Acknowledgments**
-
-- **Llama-3.2-1B**: Meta's open-source language model
-- **PySide6**: Qt for Python framework
-- **Transformers**: Hugging Face's AI library
-- **Scientific Python**: pandas, numpy, scipy, matplotlib ecosystem
-- **Scikit-learn**: Machine learning algorithms and tools
----
